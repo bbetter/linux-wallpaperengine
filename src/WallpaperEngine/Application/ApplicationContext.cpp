@@ -533,6 +533,13 @@ void ApplicationContext::loadSettingsFromArgv () {
     try {
 	program.parse_known_args (this->m_argc, this->m_argv);
 
+	// CEF utility/zygote/renderer subprocesses do not carry wallpaper args.
+	// Keep them out of NORMAL_WINDOW mode to avoid trying to load an empty
+	// default background path during subprocess startup.
+	if (isSubprocess) {
+	    this->settings.render.mode = DESKTOP_BACKGROUND;
+	}
+
 	if (!isSubprocess && this->settings.general.defaultBackground.empty ()) {
 	    throw std::runtime_error ("At least one background ID must be specified");
 	}
