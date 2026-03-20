@@ -554,8 +554,10 @@ void ApplicationContext::loadSettingsFromArgv () {
 
 	std::cout << buffer.str () << std::endl;
 	// perform some extra validation on the inputs
-	this->validateAssets ();
-	this->validateScreenshot ();
+	if (!isSubprocess) {
+	    this->validateAssets ();
+	    this->validateScreenshot ();
+	}
 
 	// setup application state
 	this->state.general.keepRunning = true;
