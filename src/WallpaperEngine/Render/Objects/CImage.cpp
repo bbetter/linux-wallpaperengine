@@ -82,11 +82,11 @@ CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
     this->m_pos.y = origin.y - (scaledSize.y / 2);
 
     if (this->getImage ().alignment.find ("top") != std::string::npos) {
-	this->m_pos.y -= scaledSize.y / 2;
-	this->m_pos.w -= scaledSize.y / 2;
-    } else if (this->getImage ().alignment.find ("bottom") != std::string::npos) {
 	this->m_pos.y += scaledSize.y / 2;
 	this->m_pos.w += scaledSize.y / 2;
+    } else if (this->getImage ().alignment.find ("bottom") != std::string::npos) {
+	this->m_pos.y -= scaledSize.y / 2;
+	this->m_pos.w -= scaledSize.y / 2;
     }
 
     if (this->getImage ().alignment.find ("left") != std::string::npos) {
@@ -161,16 +161,28 @@ CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
     GLfloat realY = 0.0;
 
     if (this->getImage ().model->passthrough) {
-	x = -((this->m_pos.x + (scene_width / 2)) / size.x);
-	y = -((this->m_pos.w + (scene_height / 2)) / size.y);
-	height = (this->m_pos.y + (scene_height / 2)) / size.y;
-	width = (this->m_pos.z + (scene_width / 2)) / size.x;
-
 	if (this->getImage ().model->fullscreen) {
+	    x = -((this->m_pos.x + (scene_width / 2)) / size.x);
+	    y = -((this->m_pos.w + (scene_height / 2)) / size.y);
+	    height = (this->m_pos.y + (scene_height / 2)) / size.y;
+	    width = (this->m_pos.z + (scene_width / 2)) / size.x;
 	    realX = -1.0;
 	    realY = -1.0;
 	    realWidth = 1.0;
 	    realHeight = 1.0;
+	} else {
+	    // Non-fullscreen composelayer: fill the full local FBO and use scene-space positions
+	    // so the copy pass correctly samples the composelayer's region of _rt_FullFrameBuffer.
+	    // The old formula divided by image size instead of scene size, producing out-of-range
+	    // UVs that caused a huge clipped quad sampling the scene center instead of the correct area.
+	    x = 0.0f;
+	    y = 0.0f;
+	    width = 1.0f;
+	    height = 1.0f;
+	    realX = this->m_pos.x;
+	    realY = this->m_pos.w;
+	    realWidth = this->m_pos.z;
+	    realHeight = this->m_pos.y;
 	}
     }
 
@@ -216,7 +228,14 @@ CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
     this->m_modelViewProjectionScreen
 	= this->getScene ().getCamera ().getProjection () * this->getScene ().getCamera ().getLookAt ();
 
-    this->m_modelViewProjectionCopy = glm::ortho<float> (0.0, size.x, 0.0, size.y);
+    if (this->getImage ().model->passthrough && !this->getImage ().model->fullscreen) {
+	// Non-fullscreen composelayer copy pass uses the scene camera MVP so copySpacePosition
+	// (scene-space vertices) correctly projects to scene UV for sampling _rt_FullFrameBuffer.
+	this->m_modelViewProjectionCopy = this->getScene ().getCamera ().getProjection ()
+	    * this->getScene ().getCamera ().getLookAt ();
+    } else {
+	this->m_modelViewProjectionCopy = glm::ortho<float> (0.0, size.x, 0.0, size.y);
+    }
     this->m_modelViewProjectionCopyInverse = glm::inverse (this->m_modelViewProjectionCopy);
     this->m_modelMatrix = glm::ortho<float> (0.0, size.x, 0.0, size.y);
     this->m_viewProjectionMatrix = glm::mat4 (1.0);

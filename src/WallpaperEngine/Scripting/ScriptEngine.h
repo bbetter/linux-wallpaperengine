@@ -36,6 +36,8 @@ public:
 	const DynamicValue& currentValue
     );
 
+    void setCanvasSize (float w, float h);
+
 private:
     ScriptEngine ();
 
@@ -44,5 +46,7 @@ private:
 
     JSRuntime* m_runtime = nullptr;
     JSContext* m_context = nullptr;
+    float m_canvasWidth = 1920.0f;
+    float m_canvasHeight = 1080.0f;
 };
 } // namespace WallpaperEngine::Scripting

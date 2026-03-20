@@ -1,6 +1,8 @@
 #include "ModelParser.h"
 #include "MaterialParser.h"
 
+#include <glm/vec2.hpp>
+
 #include "WallpaperEngine/Data/Model/Material.h"
 #include "WallpaperEngine/Data/Model/Model.h"
 #include "WallpaperEngine/Data/Model/Project.h"
@@ -29,5 +31,6 @@ ModelUniquePtr ModelParser::parse (const JSON& file, const Project& project, con
 	.width = file.optional<int> ("width"),
 	.height = file.optional<int> ("height"),
 	.puppet = file.optional<std::string> ("puppet"),
+	.cropoffset = file.optional<glm::vec2> ("cropoffset"),
     });
 }

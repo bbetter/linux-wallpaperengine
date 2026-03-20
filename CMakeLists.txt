@@ -34,6 +34,7 @@ find_package(MPV REQUIRED)
 find_package(LZ4 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(PulseAudio REQUIRED)
+find_package(Freetype REQUIRED)
 
 set(ENABLE_OPT OFF)
 set(SPIRV_CROSS_FORCE_PIC ON)
@@ -398,6 +399,8 @@ set(COMMON_SOURCES
     src/WallpaperEngine/Render/Objects/CSound.cpp
     src/WallpaperEngine/Render/Objects/CParticle.h
     src/WallpaperEngine/Render/Objects/CParticle.cpp
+    src/WallpaperEngine/Render/Objects/CText.h
+    src/WallpaperEngine/Render/Objects/CText.cpp
 
     src/WallpaperEngine/Render/CFBO.h
     src/WallpaperEngine/Render/CFBO.cpp
@@ -512,6 +515,7 @@ target_link_libraries (linux-wallpaperengine-lib PUBLIC
     ${PULSEAUDIO_LIBRARY}
     ${WAYLAND_LIBRARIES}
     ${X11_LIBRARIES}
+    Freetype::Freetype
     kissfft
     glslang
     spirv-cross-core
@@ -536,6 +540,7 @@ if (BUILD_TESTING)
         ${PULSEAUDIO_LIBRARY}
         ${WAYLAND_LIBRARIES}
         ${X11_LIBRARIES}
+        Freetype::Freetype
         kissfft
         glslang
         spirv-cross-core

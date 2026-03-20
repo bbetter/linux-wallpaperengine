@@ -42,7 +42,19 @@
 	  "#define fmod(x, y) ((x)-(y)*trunc((x)/(y)))\n"                                                              \
 	  "#define ddx dFdx\n"                                                                                         \
 	  "#define ddy(x) dFdy(-(x))\n"                                                                                \
-	  "#define GLSL 1\n\n";
+	  "#define GLSL 1\n"                                                                                           \
+	  "#define float2 vec2\n"                                                                                      \
+	  "#define float3 vec3\n"                                                                                      \
+	  "#define float4 vec4\n"                                                                                      \
+	  "#define float2x2 mat2\n"                                                                                    \
+	  "#define float3x3 mat3\n"                                                                                    \
+	  "#define float4x4 mat4\n"                                                                                    \
+	  "#define int2 ivec2\n"                                                                                       \
+	  "#define int3 ivec3\n"                                                                                       \
+	  "#define int4 ivec4\n"                                                                                       \
+	  "#define bool2 bvec2\n"                                                                                      \
+	  "#define bool3 bvec3\n"                                                                                      \
+	  "#define bool4 bvec4\n\n";
 #define FRAGMENT_SHADER_DEFINES                                                                                        \
     "out vec4 out_FragColor;\n"                                                                                        \
     "#define varying in\n"
@@ -322,7 +334,13 @@ void ShaderUnit::preprocessRequires () {
 
 void ShaderUnit::parseComboConfiguration (const std::string& content, const int defaultValue) {
     // TODO: SUPPORT REQUIRES SO WE PROPERLY FOLLOW THE REQUIRED CHAIN
-    const auto data = JSON::parse (content);
+    JSON data;
+    try {
+	data = JSON::parse (content);
+    } catch (const std::exception& e) {
+	sLog.debug ("ShaderUnit: skipping combo annotation with invalid JSON in ", this->m_file, ": ", e.what ());
+	return;
+    }
     const auto combo = data.require<std::string> ("combo", "cannot parse combo information");
     // ignore type as it seems to be used only on the editor
     // const auto type = data.find ("type");
@@ -357,7 +375,13 @@ void ShaderUnit::parseComboConfiguration (const std::string& content, const int 
 void ShaderUnit::parseParameterConfiguration (
     const std::string& type, const std::string& name, const std::string& content
 ) {
-    const auto data = JSON::parse (content);
+    JSON data;
+    try {
+	data = JSON::parse (content);
+    } catch (const std::exception& e) {
+	sLog.debug ("ShaderUnit: skipping parameter annotation with invalid JSON for ", name, " in ", this->m_file, ": ", e.what ());
+	return;
+    }
     const auto material = data.optional ("material");
     const auto defvalue = data.optional ("default");
     // auto range = data.find ("range");

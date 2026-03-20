@@ -1,6 +1,8 @@
 #include "WallpaperEngine/Render/Objects/CImage.h"
 #include "WallpaperEngine/Render/Objects/CParticle.h"
 #include "WallpaperEngine/Render/Objects/CSound.h"
+#include "WallpaperEngine/Render/Objects/CText.h"
+#include "WallpaperEngine/Scripting/ScriptEngine.h"
 
 #include "WallpaperEngine/Render/WallpaperState.h"
 
@@ -38,10 +40,13 @@ CScene::CScene (
 	// TODO: CALCULATE ORTHOGONAL PROJECTION BASED ON CONTENT'S SIZE HERE
     }
 
+    sLog.debug ("CScene: projection width=", width, " height=", height, " isAuto=", scene->camera.projection.isAuto);
+
     this->m_parallaxDisplacement = { 0, 0 };
 
     // TODO: CONVERSION
     this->m_camera->setOrthogonalProjection (width, height);
+    Scripting::ScriptEngine::instance ().setCanvasSize (width, height);
 
     // setup framebuffers here as they're required for the scene setup
     this->setupFramebuffers ();
@@ -214,6 +219,8 @@ Render::CObject* CScene::createObject (const Object& object) {
 	}
 
 	renderObject = particle;
+    } else if (object.is<Text> ()) {
+	renderObject = new Objects::CText (*this, *object.as<Text> ());
     } else {
 	sLog.debug ("Unknown object type, creating placeholder, empty object: ", object.id);
 	renderObject = new CObject (*this, object);

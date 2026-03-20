@@ -31,6 +31,11 @@ ScriptEngine::ScriptEngine () {
     }
 }
 
+void ScriptEngine::setCanvasSize (float w, float h) {
+    this->m_canvasWidth = w;
+    this->m_canvasHeight = h;
+}
+
 ScriptEngine::~ScriptEngine () {
     if (this->m_context) {
 	JS_FreeContext (this->m_context);
@@ -92,6 +97,8 @@ JSValue ScriptEngine::dynamicValueToJS (const DynamicValue& value) const {
 	    JS_SetPropertyStr (ctx, obj, "w", JS_NewInt32 (ctx, value.getIVec4 ().w));
 	    return obj;
 	}
+	case DynamicValue::String:
+	    return JS_NewString (ctx, value.getString ().c_str ());
 	default:
 	    return JS_UNDEFINED;
     }
@@ -107,6 +114,14 @@ DynamicValueUniquePtr ScriptEngine::jsToDynamicValue (JSValue val, DynamicValue:
 
     // scalar types returned directly
     int tag = JS_VALUE_GET_TAG (val);
+    if (tag == JS_TAG_STRING) {
+	const char* str = JS_ToCString (ctx, val);
+	if (str) {
+	    result->update (std::string (str));
+	    JS_FreeCString (ctx, str);
+	}
+	return result;
+    }
     if (tag == JS_TAG_INT) {
 	int32_t i;
 	JS_ToInt32 (ctx, &i, val);
@@ -263,7 +278,10 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 	    << "        return builder;\n"
 	    << "      },\n"
 	    << "      addCombo: function(opts) {\n"
-	    << "        if (!(opts.name in __props)) __props[opts.name] = opts.value;\n"
+	    << "        if (!(opts.name in __props)) {\n"
+	    << "          var dv = opts.value !== undefined ? opts.value : (opts.options && opts.options.length ? opts.options[0].value : undefined);\n"
+	    << "          __props[opts.name] = dv;\n"
+	    << "        }\n"
 	    << "        return builder;\n"
 	    << "      },\n"
 	    << "      addColor: function(opts) {\n"
@@ -277,9 +295,44 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 	    << "      finish: function() { return __props; }\n"
 	    << "    };\n"
 	    << "    return builder;\n"
-	    << "  }\n";
+	    << "  }\n"
+	    // WPE global API stubs
+	    << "  var Vec2 = function(x,y){this.x=x||0;this.y=y||0;};\n"
+	    << "  var Vec3 = function(x,y,z){this.x=x||0;this.y=y||0;this.z=z||0;};\n"
+	    << "  var Vec4 = function(x,y,z,w){this.x=x||0;this.y=y||0;this.z=z||0;this.w=w||0;};\n"
+	    << "  var __audioZero = (function(){var a=[];for(var i=0;i<64;i++)a.push(0);return{average:a,peaks:a};})();\n"
+	    << "  var engine = {\n"
+	    << "    canvasSize: {x:" << this->m_canvasWidth << ",y:" << this->m_canvasHeight << "},\n"
+	    << "    frametime: 0.016,\n"
+	    << "    timeOfDay: (new Date().getHours() + new Date().getMinutes()/60.0) / 24.0,\n"
+	    << "    AUDIO_RESOLUTION_16: 16, AUDIO_RESOLUTION_32: 32, AUDIO_RESOLUTION_64: 64,\n"
+	    << "    registerAudioBuffers: function(n) { return __audioZero; },\n"
+	    << "    registerUpdateEvent:function(){},registerInitEvent:function(){},\n"
+	    << "    registerDestroyEvent:function(){},on:function(){},\n"
+	    << "    setTimeout:function(cb,delay){return 0;},clearTimeout:function(){},\n"
+	    << "    setInterval:function(cb,delay){return 0;},clearInterval:function(){}\n"
+	    << "  };\n"
+	    << "  var WEMath = {\n"
+	    << "    smoothStep: function(edge0,edge1,x) {\n"
+	    << "      var t = Math.max(0,Math.min(1,(x-edge0)/(edge1-edge0)));\n"
+	    << "      return t*t*(3-2*t);\n"
+	    << "    },\n"
+	    << "    clamp: function(x,lo,hi){return Math.max(lo,Math.min(hi,x));},\n"
+	    << "    mix: function(a,b,t){return a*(1-t)+b*t;},\n"
+	    << "    fract: function(x){return x-Math.floor(x);},\n"
+	    << "    mod: function(x,y){return x-y*Math.floor(x/y);}\n"
+	    << "  };\n"
+	    << "  var __texAnim = {getFrame:function(){return 0;},frameCount:1,duration:0,play:function(){},pause:function(){},stop:function(){},rate:1};\n"
+	    << "  var thisLayer = {\n"
+	    << "    getAnimation:function(){return{rate:1,play:function(){},pause:function(){},stop:function(){}};},\n"
+	    << "    getTextureAnimation:function(){return __texAnim;},\n"
+	    << "    getObject:function(){return null;},getScene:function(){return null;}\n"
+	    << "  };\n"
+	    << "  var thisScene = {getObject:function(){return null;},getCamera:function(){return null;},\n"
+	    << "    getLayer:function(n){return{origin:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},angles:{x:0,y:0,z:0},visible:true};}};\n"
+	    << "  var console = {log:function(){},warn:function(){},error:function(){},debug:function(){}};\n";
 
-    // Strip 'use strict'; and export keywords, embed the script body
+    // Strip 'use strict'; and export/import keywords, embed the script body
     std::string body = scriptSource;
 
     // Remove 'use strict'; declarations
@@ -291,13 +344,32 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 	body.erase (pos, 13);
     }
 
+    // Remove import statements (import ... from '...'; or import * as ..., etc.)
+    while ((pos = body.find ("import ")) != std::string::npos) {
+	size_t end = body.find (';', pos);
+	if (end != std::string::npos) {
+	    body.erase (pos, end - pos + 1);
+	} else {
+	    // No semicolon found, erase to end of line
+	    end = body.find ('\n', pos);
+	    if (end != std::string::npos) {
+		body.erase (pos, end - pos);
+	    } else {
+		body.erase (pos);
+	    }
+	}
+    }
+
     // Remove export keywords (export var ..., export function ...)
     while ((pos = body.find ("export ")) != std::string::npos) {
 	body.erase (pos, 7);
     }
 
-    wrapper << body << "\n"
-	    << "  return update(globalThis.__currentValue);\n"
+    wrapper << "  var input = globalThis.__currentValue;\n"
+	    << body << "\n"
+	    << "  if (typeof init === 'function') { try { init(); } catch(e) {} }\n"
+	    << "  if (typeof update === 'function') { return update(globalThis.__currentValue); }\n"
+	    << "  return globalThis.__currentValue;\n"
 	    << "})();\n";
 
     std::string evalScript = wrapper.str ();
@@ -317,6 +389,7 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
     JS_FreeValue (ctx, propsObj);
 
     if (JS_IsException (result)) {
+	sLog.debug ("ScriptEngine: failing script (", scriptSource.size (), " bytes)");
 	logJSException (ctx, "evaluate");
 	JS_FreeValue (ctx, result);
 	auto fallback = std::make_unique<DynamicValue> ();
@@ -326,5 +399,9 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 
     auto dynResult = this->jsToDynamicValue (result, currentValue.getType ());
     JS_FreeValue (ctx, result);
+    // If the script returned undefined/null, preserve the current value
+    if (dynResult->getType () == DynamicValue::Null) {
+	dynResult->update (currentValue);
+    }
     return dynResult;
 }

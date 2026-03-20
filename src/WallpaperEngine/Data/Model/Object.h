@@ -576,4 +576,45 @@ public:
 	Object (std::move (data)), ParticleData (std::move (particleData)) { };
     ~Particle () override = default;
 };
+
+struct TextData {
+    /** The text value to display (may be a script placeholder like <ScriptName>) */
+    std::string value;
+    /** Optional JavaScript that computes the text dynamically */
+    std::optional<std::string> script;
+    /** User-customizable script property values (name → current value) */
+    std::map<std::string, DynamicValueUniquePtr> scriptProperties;
+    /** Path to the TTF font file (relative to assets) */
+    std::string font;
+    /** Font size in points */
+    float pointSize;
+    /** Horizontal text alignment within the box: left, center, right */
+    std::string horizontalAlign;
+    /** Vertical text alignment within the box: top, center, bottom */
+    std::string verticalAlign;
+    /** Text color */
+    UserSettingUniquePtr color;
+    /** Background fill color */
+    UserSettingUniquePtr backgroundColor;
+    /** Whether the background is drawn opaquely */
+    bool opaqueBackground;
+    /** Padding around text in pixels */
+    float padding;
+    /** Text box size in pixels */
+    glm::vec2 size;
+    /** Transform properties shared with Image objects */
+    UserSettingUniquePtr scale;
+    UserSettingUniquePtr angles;
+    UserSettingUniquePtr visible;
+    UserSettingUniquePtr alpha;
+    std::string alignment;
+    UserSettingUniquePtr parallaxDepth;
+};
+
+class Text final : public Object, public TextData {
+public:
+    explicit Text (ObjectData data, TextData textData) noexcept :
+	Object (std::move (data)), TextData (std::move (textData)) { };
+    ~Text () override = default;
+};
 } // namespace WallpaperEngine::Data::Model

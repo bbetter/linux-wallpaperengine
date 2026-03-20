@@ -4,6 +4,7 @@
 #include "ModelParser.h"
 
 #include "ShaderConstantParser.h"
+#include "UserSettingParser.h"
 #include "WallpaperEngine/Data/Model/Object.h"
 #include "WallpaperEngine/Data/Model/Project.h"
 #include "WallpaperEngine/Logging/Log.h"
@@ -55,7 +56,7 @@ ObjectUniquePtr ObjectParser::parse (const JSON& it, const Project& project) {
     } else if (particleIt != it.end ()) {
 	return parseParticle (it, project, std::move (basedata));
     } else if (textIt != it.end ()) {
-	sLog.error ("Text objects are not supported yet");
+	return parseText (it, project, std::move (basedata));
     } else if (lightIt != it.end ()) {
 	sLog.error ("Light objects are not supported yet");
     } else {
@@ -893,4 +894,89 @@ ParticleInstanceOverride ObjectParser::parseParticleInstanceOverride (const JSON
 	.color = it.user ("color", properties, glm::vec3 (1.0f)),
 	.colorn = it.user ("colorn", properties, glm::vec3 (1.0f)),
     };
+}
+
+TextUniquePtr ObjectParser::parseText (const JSON& it, const Project& project, ObjectData base) {
+    const auto& properties = project.properties;
+    const auto textIt = it.require ("text", "Text object must have a text field");
+
+    std::string value = textIt.optional<std::string> ("value", "");
+    std::optional<std::string> script = std::nullopt;
+    const auto scriptIt = textIt.find ("script");
+    if (scriptIt != textIt.end () && scriptIt->is_string ()) {
+	script = scriptIt->get<std::string> ();
+    }
+
+    std::map<std::string, DynamicValueUniquePtr> scriptProperties;
+    const auto scriptPropsIt = textIt.find ("scriptproperties");
+    if (scriptPropsIt != textIt.end () && scriptPropsIt->is_object ()) {
+	for (const auto& [key, propData] : scriptPropsIt->items ()) {
+	    // Resolve the actual value node: unwrap {user, value} objects or use directly
+	    const auto& valueNode = (propData.is_object () && propData.contains ("value"))
+				      ? propData.at ("value")
+				      : static_cast<const JSON&> (propData);
+	    // Plain strings (e.g. delimiter ":") cannot be parsed as vectors — store as string
+	    if (valueNode.is_string () && valueNode.get<std::string> ().find (' ') == std::string::npos) {
+		auto val = std::make_unique<DynamicValue> ();
+		val->update (valueNode.get<std::string> ());
+		scriptProperties[key] = std::move (val);
+	    } else {
+		auto setting = UserSettingParser::parse (propData, properties);
+		scriptProperties[key] = std::move (setting->value);
+	    }
+	}
+    }
+
+    // Some wallpapers put text fields (font, pointsize, size, etc.) inside the "text" sub-object,
+    // while others put them at the top-level object. Check inner first, fall back to outer.
+    // Unwraps {user, value} objects so plain-value fields don't crash on user-setting format.
+    // Returns std::optional<JSON> with the unwrapped value node, or nullopt if not found.
+    auto findUnwrapped = [&] (const char* key) -> std::optional<JSON> {
+	auto check = [&] (const JSON& node) -> std::optional<JSON> {
+	    auto found = node.find (key);
+	    if (found == node.end () || found->is_null ()) return std::nullopt;
+	    if (found->is_object () && found->contains ("value")) return found->at ("value");
+	    return *found;
+	};
+	auto inner = check (textIt);
+	if (inner.has_value ()) return inner;
+	return check (it);
+    };
+    auto textOpt = [&] <typename T> (const char* key, T def) -> T {
+	auto val = findUnwrapped (key);
+	if (val.has_value ()) return *val;  // uses JSON::operator T() for implicit conversion
+	return def;
+    };
+    // For fields that are UserSettingUniquePtr (color, backgroundColor, etc.) — returns unique_ptr
+    auto textUser = [&] (const char* key, auto def) {
+	auto inner = textIt.find (key);
+	if (inner != textIt.end () && !inner->is_null ()) {
+	    return textIt.user (key, properties, def);
+	}
+	return it.user (key, properties, def);
+    };
+
+    return std::make_unique<Text> (
+	std::move (base),
+	TextData {
+	    .value = value,
+	    .script = script,
+	    .scriptProperties = std::move (scriptProperties),
+	    .font = textOpt ("font", std::string ("fonts/RobotoMono-Regular.ttf")),
+	    .pointSize = textOpt ("pointsize", 16.0f),
+	    .horizontalAlign = textOpt ("horizontalalign", std::string ("center")),
+	    .verticalAlign = textOpt ("verticalalign", std::string ("center")),
+	    .color = textUser ("color", glm::vec3 (1.0f)),
+	    .backgroundColor = textUser ("backgroundcolor", glm::vec3 (0.0f)),
+	    .opaqueBackground = textOpt ("opaquebackground", false),
+	    .padding = textOpt ("padding", 0.0f),
+	    .size = textOpt ("size", glm::vec2 (256.0f, 64.0f)),
+	    .scale = it.user ("scale", properties, glm::vec3 (1.0f)),
+	    .angles = it.user ("angles", properties, glm::vec3 (0.0f)),
+	    .visible = it.user ("visible", properties, true),
+	    .alpha = it.user ("alpha", properties, 1.0f),
+	    .alignment = it.optional<std::string> ("alignment", "center"),
+	    .parallaxDepth = it.user ("parallaxDepth", properties, glm::vec2 (0.0f)),
+	}
+    );
 }
