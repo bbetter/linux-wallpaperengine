@@ -83,7 +83,9 @@ WebBrowserContext::WebBrowserContext (WallpaperEngine::Application::WallpaperApp
     //  CefString(&settings.browser_subprocess_path) = "path/to/client"
     cef_string_utf8_to_utf16 (cache_path.c_str (), cache_path.length (), &settings.root_cache_path);
     settings.windowless_rendering_enabled = true;
-#if defined(CEF_NO_SANDBOX)
+#if defined(__linux__)
+    // We do not ship/configure Chromium's Linux sandbox helper in this project.
+    // Keep subprocess startup unsandboxed to avoid early ICU/shared-fd failures.
     settings.no_sandbox = true;
 #endif
 
