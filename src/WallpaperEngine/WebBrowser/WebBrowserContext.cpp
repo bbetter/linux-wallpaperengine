@@ -1,9 +1,11 @@
 #include "WebBrowserContext.h"
 #include "CEF/BrowserApp.h"
+#include "CEF/CommandLineUtils.h"
 #include "WallpaperEngine/Logging/Log.h"
 #include "WallpaperEngine/WebBrowser/CEF/SubprocessApp.h"
 #include "include/cef_app.h"
 #include "include/cef_render_handler.h"
+#include <cstdlib>
 #include <filesystem>
 #include <random>
 
@@ -58,10 +60,11 @@ WebBrowserContext::WebBrowserContext (WallpaperEngine::Application::WallpaperApp
 
     commandLine->InitFromArgv (main_args.argc, main_args.argv);
 
+    // No software-forcing overrides: let CEF use hardware GPU (radv Vulkan / hardware GL).
     if (!commandLine->HasSwitch ("type")) {
 	this->m_browserApplication = new CEF::BrowserApp (wallpaperApplication);
     } else {
-	this->m_browserApplication = new CEF::SubprocessApp (wallpaperApplication);
+	this->m_browserApplication = new CEF::SubprocessApp ();
     }
 
     // this blocks for anything not-main-thread
@@ -76,6 +79,15 @@ WebBrowserContext::WebBrowserContext (WallpaperEngine::Application::WallpaperApp
     // Configurate Chromium
     CefSettings settings;
     std::string cache_path = (std::filesystem::temp_directory_path () / uuid::generate_uuid_v4 ()).string ();
+    const std::filesystem::path binaryPath = std::filesystem::absolute (main_args.argv[0]);
+    const std::filesystem::path resourceDir = binaryPath.parent_path ();
+
+    CefString (&settings.resources_dir_path) = resourceDir.string ();
+    CefString (&settings.locales_dir_path) = (resourceDir / "locales").string ();
+    WallpaperEngine::WebBrowser::CEF::setResourcePaths (resourceDir, resourceDir / "locales");
+    setenv ("WALLPAPER_RESOURCE_DIR", resourceDir.string ().c_str (), 1);
+    setenv ("WALLPAPER_LOCALES_DIR", (resourceDir / "locales").string ().c_str (), 1);
+    CefString (&settings.browser_subprocess_path) = binaryPath.string ();
     // CefString(&settings.locales_dir_path) = "OffScreenCEF/godot/locales";
     // CefString(&settings.resources_dir_path) = "OffScreenCEF/godot/";
     // CefString(&settings.framework_dir_path) = "OffScreenCEF/godot/";

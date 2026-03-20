@@ -304,6 +304,9 @@ WaylandOpenGLDriver::WaylandOpenGLDriver (ApplicationContext& context, Wallpaper
 	sLog.exception ("Cannot continue...");
     }
 
+    // glewExperimental lets GLEW load GL function pointers on EGL/Wayland
+    // even without an active GLX display.
+    glewExperimental = GL_TRUE;
     if (const GLenum result = glewInit (); result != GLEW_OK) {
 	sLog.error ("Failed to initialize GLEW: ", glewGetErrorString (result));
     }
