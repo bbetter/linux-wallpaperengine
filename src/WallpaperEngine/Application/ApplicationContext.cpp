@@ -243,6 +243,14 @@ ApplicationContext::ApplicationContext (int argc, char* argv[]) : m_argc (argc),
 
 void ApplicationContext::loadSettingsFromArgv () {
     std::string lastScreen;
+    bool isSubprocess = false;
+
+    for (int i = 1; i < this->m_argc; i++) {
+	if (strncmp (this->m_argv[i], "--type=", 7) == 0) {
+	    isSubprocess = true;
+	    break;
+	}
+    }
 
     argparse::ArgumentParser program ("linux-wallpaperengine", "0.0", argparse::default_arguments::help);
 
@@ -525,7 +533,7 @@ void ApplicationContext::loadSettingsFromArgv () {
     try {
 	program.parse_known_args (this->m_argc, this->m_argv);
 
-	if (this->settings.general.defaultBackground.empty ()) {
+	if (!isSubprocess && this->settings.general.defaultBackground.empty ()) {
 	    throw std::runtime_error ("At least one background ID must be specified");
 	}
 
