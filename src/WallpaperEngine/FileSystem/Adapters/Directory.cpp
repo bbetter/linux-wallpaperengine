@@ -64,10 +64,18 @@ std::filesystem::path DirectoryAdapter::physicalPath (const std::filesystem::pat
 }
 
 bool DirectoryFactory::handlesMountpoint (const std::filesystem::path& path) const {
-    const auto finalpath = std::filesystem::canonical (path);
-    const auto status = std::filesystem::status (finalpath);
+    if (path.empty ()) {
+	return false;
+    }
 
-    return std::filesystem::exists (finalpath) && std::filesystem::is_directory (status);
+    try {
+	const auto finalpath = std::filesystem::canonical (path);
+	const auto status = std::filesystem::status (finalpath);
+
+	return std::filesystem::exists (finalpath) && std::filesystem::is_directory (status);
+    } catch (const std::filesystem::filesystem_error&) {
+	return false;
+    }
 }
 
 AdapterSharedPtr DirectoryFactory::create (const std::filesystem::path& path) const {

@@ -23,9 +23,6 @@ void BrowserApp::OnBeforeCommandLineProcessing (const CefString& process_type, C
 	"IsolateOrigins,HardwareMediaKeyHandling,WebContentsOcclusion,RendererCodeIntegrityEnabled,site-per-process"
     );
     command_line->AppendSwitch ("disable-gpu-shader-disk-cache");
-    command_line->AppendSwitch ("disable-gpu");
-    command_line->AppendSwitch ("disable-gpu-compositing");
-    command_line->AppendSwitch ("in-process-gpu");
     command_line->AppendSwitch ("disable-site-isolation-trials");
     command_line->AppendSwitch ("disable-web-security");
     command_line->AppendSwitchWithValue ("remote-allow-origins", "*");
