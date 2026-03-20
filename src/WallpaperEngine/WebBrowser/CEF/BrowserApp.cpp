@@ -1,5 +1,6 @@
 #include "BrowserApp.h"
 #include "WallpaperEngine/Logging/Log.h"
+#include <cstdlib>
 
 using namespace WallpaperEngine::WebBrowser::CEF;
 
@@ -39,6 +40,16 @@ void BrowserApp::OnBeforeCommandLineProcessing (const CefString& process_type, C
 #if defined(__linux__)
     command_line->AppendSwitch ("no-sandbox");
     command_line->AppendSwitch ("disable-setuid-sandbox");
+
+    const char* sessionType = std::getenv ("XDG_SESSION_TYPE");
+    const char* waylandDisplay = std::getenv ("WAYLAND_DISPLAY");
+    if ((sessionType && std::string (sessionType) == "wayland") || (waylandDisplay && waylandDisplay[0] != '\0')) {
+	// Prefer native Wayland/Ozone path when running inside Wayland sessions.
+	// This avoids hard dependency on GLX/X11 in compositors like Hyprland and KDE Wayland.
+	command_line->AppendSwitchWithValue ("ozone-platform-hint", "wayland");
+	command_line->AppendSwitchWithValue ("ozone-platform", "wayland");
+	command_line->AppendSwitchWithValue ("enable-features", "UseOzonePlatform");
+    }
 #endif
     // TODO: ACTIVATE THIS IF WE EVER SUPPORT MACOS OFFICIALLY
     /*
