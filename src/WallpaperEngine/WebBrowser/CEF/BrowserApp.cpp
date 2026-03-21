@@ -1,6 +1,6 @@
 #include "BrowserApp.h"
+#include "CommandLineUtils.h"
 #include "WallpaperEngine/Logging/Log.h"
-#include <cstdlib>
 
 using namespace WallpaperEngine::WebBrowser::CEF;
 
@@ -13,16 +13,13 @@ void BrowserApp::OnContextInitialized () {
     // register all the needed schemes, "wp" + the background id is going to be our scheme
     for (const auto& [workshopId, factory] : this->getHandlerFactories ()) {
 	CefRegisterSchemeHandlerFactory (
-	    WPSchemeHandlerFactory::generateSchemeName (workshopId), static_cast<const char*> (nullptr), factory
+	    WPSchemeHandlerFactory::generateSchemeName (), WPSchemeHandlerFactory::generateDomainName (workshopId), factory
 	);
     }
 }
 
 void BrowserApp::OnBeforeCommandLineProcessing (const CefString& process_type, CefRefPtr<CefCommandLine> command_line) {
-    command_line->AppendSwitchWithValue (
-	"disable-features",
-	"IsolateOrigins,HardwareMediaKeyHandling,WebContentsOcclusion,RendererCodeIntegrityEnabled,site-per-process"
-    );
+    SubprocessApp::OnBeforeCommandLineProcessing (process_type, command_line);
     command_line->AppendSwitch ("disable-gpu-shader-disk-cache");
     command_line->AppendSwitch ("disable-site-isolation-trials");
     command_line->AppendSwitch ("disable-web-security");
@@ -37,20 +34,6 @@ void BrowserApp::OnBeforeCommandLineProcessing (const CefString& process_type, C
     command_line->AppendSwitch ("disable-breakpad");
     command_line->AppendSwitch ("disable-field-trial-config");
     command_line->AppendSwitch ("no-experiments");
-#if defined(__linux__)
-    command_line->AppendSwitch ("no-sandbox");
-    command_line->AppendSwitch ("disable-setuid-sandbox");
-
-    const char* sessionType = std::getenv ("XDG_SESSION_TYPE");
-    const char* waylandDisplay = std::getenv ("WAYLAND_DISPLAY");
-    if ((sessionType && std::string (sessionType) == "wayland") || (waylandDisplay && waylandDisplay[0] != '\0')) {
-	// Prefer native Wayland/Ozone path when running inside Wayland sessions.
-	// This avoids hard dependency on GLX/X11 in compositors like Hyprland and KDE Wayland.
-	command_line->AppendSwitchWithValue ("ozone-platform-hint", "wayland");
-	command_line->AppendSwitchWithValue ("ozone-platform", "wayland");
-	command_line->AppendSwitchWithValue ("enable-features", "UseOzonePlatform");
-    }
-#endif
     // TODO: ACTIVATE THIS IF WE EVER SUPPORT MACOS OFFICIALLY
     /*
 if (process_type.empty()) {
@@ -61,8 +44,4 @@ if (process_type.empty()) {
 }*/
 }
 
-void BrowserApp::OnBeforeChildProcessLaunch (CefRefPtr<CefCommandLine> command_line) {
-    // Keep CEF child process argv minimal. Forwarding wallpaper/runtime args into
-    // utility/zygote processes can make child startup run main-path initialization.
-    (void)command_line;
-}
+void BrowserApp::OnBeforeChildProcessLaunch (CefRefPtr<CefCommandLine> command_line) { (void)command_line; }

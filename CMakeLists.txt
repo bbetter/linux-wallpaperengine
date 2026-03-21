@@ -411,10 +411,14 @@ set(COMMON_SOURCES
     src/WallpaperEngine/WebBrowser/CEF/RenderHandler.h
     src/WallpaperEngine/WebBrowser/CEF/BrowserClient.cpp
     src/WallpaperEngine/WebBrowser/CEF/BrowserClient.h
+    src/WallpaperEngine/WebBrowser/CEF/CommandLineUtils.cpp
+    src/WallpaperEngine/WebBrowser/CEF/CommandLineUtils.h
     src/WallpaperEngine/WebBrowser/CEF/BrowserApp.cpp
     src/WallpaperEngine/WebBrowser/CEF/BrowserApp.h
     src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.cpp
     src/WallpaperEngine/WebBrowser/CEF/SubprocessApp.h
+    src/WallpaperEngine/WebBrowser/CEF/WallpaperEngineRenderHandler.cpp
+    src/WallpaperEngine/WebBrowser/CEF/WallpaperEngineRenderHandler.h
     src/WallpaperEngine/WebBrowser/CEF/WPSchemeHandlerFactory.cpp
     src/WallpaperEngine/WebBrowser/CEF/WPSchemeHandlerFactory.h
     src/WallpaperEngine/WebBrowser/CEF/WPSchemeHandler.cpp

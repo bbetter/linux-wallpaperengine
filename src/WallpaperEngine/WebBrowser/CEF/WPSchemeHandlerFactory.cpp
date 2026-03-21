@@ -15,6 +15,8 @@ CefRefPtr<CefResourceHandler> WPSchemeHandlerFactory::Create (
     return new WPSchemeHandler (this->m_project);
 }
 
-std::string WPSchemeHandlerFactory::generateSchemeName (const std::string& workshopId) {
-    return std::string (WPENGINE_SCHEME) + workshopId;
+std::string WPSchemeHandlerFactory::generateSchemeName () { return std::string (WPENGINE_SCHEME); }
+
+std::string WPSchemeHandlerFactory::generateDomainName (const std::string& workshopId) {
+    return "wallpaper-" + workshopId;
 }

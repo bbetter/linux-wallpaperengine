@@ -31,8 +31,9 @@ CWeb::CWeb (
 
     this->m_client = new WebBrowser::CEF::BrowserClient (m_renderHandler);
     // use the custom scheme for the wallpaper's files
-    const std::string htmlURL = WPSchemeHandlerFactory::generateSchemeName (this->getWeb ().project.workshopId)
-	+ "://root/" + this->getWeb ().filename;
+    const std::string htmlURL = WPSchemeHandlerFactory::generateSchemeName () + "://"
+	+ WPSchemeHandlerFactory::generateDomainName (this->getWeb ().project.workshopId) + "/"
+	+ this->getWeb ().filename;
     this->m_browser
 	= CefBrowserHost::CreateBrowserSync (window_info, this->m_client, htmlURL, browserSettings, nullptr, nullptr);
 }

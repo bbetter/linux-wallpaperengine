@@ -4,6 +4,8 @@
 #include "WallpaperEngine/Application/ApplicationContext.h"
 #include "WallpaperEngine/Application/WallpaperApplication.h"
 #include "WallpaperEngine/Logging/Log.h"
+#include "WallpaperEngine/WebBrowser/CEF/SubprocessApp.h"
+#include "include/cef_app.h"
 
 WallpaperEngine::Application::WallpaperApplication* app;
 
@@ -22,18 +24,12 @@ void initLogging () {
 
 int main (int argc, char* argv[]) {
     try {
-	// if type parameter is specified, this is a subprocess, so no logging should be enabled from our side
+	// Any Chromium child process should go straight through CefExecuteProcess.
 	bool enableLogging = true;
-	const std::string typeZygote = "--type=zygote";
-	const std::string typeUtility = "--type=utility";
+	const std::string typePrefix = "--type=";
 
 	for (int i = 1; i < argc; i++) {
-	    if (strncmp (typeZygote.c_str (), argv[i], typeZygote.size ()) == 0) {
-		enableLogging = false;
-		break;
-	    }
-
-	    if (strncmp (typeUtility.c_str (), argv[i], typeUtility.size ()) == 0) {
+	    if (strncmp (typePrefix.c_str (), argv[i], typePrefix.size ()) == 0) {
 		enableLogging = false;
 		break;
 	    }
@@ -46,6 +42,14 @@ int main (int argc, char* argv[]) {
 	WallpaperEngine::Application::ApplicationContext appContext (argc, argv);
 
 	appContext.loadSettingsFromArgv ();
+
+	if (!enableLogging) {
+	    CefMainArgs mainArgs (argc, argv);
+	    CefRefPtr<WallpaperEngine::WebBrowser::CEF::SubprocessApp> subprocessApp
+		= new WallpaperEngine::WebBrowser::CEF::SubprocessApp ();
+	    const int exitCode = CefExecuteProcess (mainArgs, subprocessApp, nullptr);
+	    return exitCode >= 0 ? exitCode : 0;
+	}
 
 	app = new WallpaperEngine::Application::WallpaperApplication (appContext);
 

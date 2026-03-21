@@ -22,7 +22,8 @@ public:
 	CefRefPtr<CefRequest> request
     ) override;
 
-    static std::string generateSchemeName (const std::string& workshopId);
+    static std::string generateSchemeName ();
+    static std::string generateDomainName (const std::string& workshopId);
 
 private:
     const Project& m_project;

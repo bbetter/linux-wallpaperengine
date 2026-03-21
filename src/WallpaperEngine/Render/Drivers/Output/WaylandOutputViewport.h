@@ -2,9 +2,6 @@
 
 #ifdef ENABLE_WAYLAND
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GL/glew.h>
 #include <wayland-client.h>
 #include <wayland-cursor.h>
 #include <wayland-egl.h>
