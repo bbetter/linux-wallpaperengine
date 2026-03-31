@@ -1,6 +1,7 @@
 #include "ShaderUnit.h"
 
 #include "WallpaperEngine/Logging/Log.h"
+#include <cmath>
 #include <regex>
 #include <stack>
 #include <string>
@@ -361,11 +362,15 @@ void ShaderUnit::parseComboConfiguration (const std::string& content, const int 
 	    // TODO: PROPERLY SUPPORT EMPTY COMBOS
 	    this->m_discoveredCombos.emplace (combo, defaultValue);
 	} else if (defvalue->is_number_float ()) {
-	    sLog.exception ("float combos are not supported in shader ", this->m_file, ". ", combo);
+	    this->m_discoveredCombos.emplace (combo, static_cast<int> (std::round (defvalue->get<float> ())));
 	} else if (defvalue->is_number_integer ()) {
 	    this->m_discoveredCombos.emplace (combo, defvalue->get<int> ());
 	} else if (defvalue->is_string ()) {
-	    sLog.exception ("string combos are not supported in shader ", this->m_file, ". ", combo);
+	    try {
+		this->m_discoveredCombos.emplace (combo, std::stoi (defvalue->get<std::string> ()));
+	    } catch (const std::exception&) {
+		sLog.error ("string combo default is not an integer in shader ", this->m_file, ". ", combo, " = ", defvalue->get<std::string> ());
+	    }
 	} else {
 	    sLog.exception ("cannot parse combo information ", combo, ". unknown type for ", defvalue->dump ());
 	}
