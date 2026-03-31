@@ -435,10 +435,10 @@ void ShaderUnit::parseParameterConfiguration (
 	// extract the texture number from the name suffix (supports g_Texture0 through g_Texture99+)
 	size_t index = 0;
 	try {
-	    index = std::stoul (name.substr (std::string ("g_Texture").length ()));
+		index = std::stoul (name.substr (std::string ("g_Texture").length ()));
 	} catch (const std::exception&) {
-	    sLog.error ("Cannot parse texture index from name: ", name, " in shader ", this->m_file);
-	    return;
+		sLog.error ("Cannot parse texture index from name: ", name, " in shader ", this->m_file);
+		return;
 	}
 	const auto requireany = data.find ("requireany");
 	const auto require = data.find ("require");
