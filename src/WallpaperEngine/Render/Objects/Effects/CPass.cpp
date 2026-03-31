@@ -49,6 +49,8 @@ public:
 	glBindTexture (GL_TEXTURE_2D, 0);
     }
     ~SolidColorTexture () override { glDeleteTextures (1, &m_textureID); }
+    SolidColorTexture (const SolidColorTexture&) = delete;
+    SolidColorTexture& operator= (const SolidColorTexture&) = delete;
 
     GLuint getTextureID (uint32_t) const override { return m_textureID; }
     uint32_t getTextureWidth (uint32_t) const override { return 1; }
