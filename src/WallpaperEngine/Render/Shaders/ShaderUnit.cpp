@@ -434,10 +434,10 @@ void ShaderUnit::parseParameterConfiguration (
 	// extract the texture number from the name suffix (supports g_Texture0 through g_Texture99+)
 	size_t index = 0;
 	try {
-		index = std::stoul (name.substr (std::string ("g_Texture").length ()));
+	    index = std::stoul (name.substr (std::string ("g_Texture").length ()));
 	} catch (const std::exception&) {
-		sLog.error ("Cannot parse texture index from name: ", name, " in shader ", this->m_file);
-		return;
+	    sLog.error ("Cannot parse texture index from name: ", name, " in shader ", this->m_file);
+	    return;
 	}
 	const auto requireany = data.find ("requireany");
 	const auto require = data.find ("require");
@@ -452,6 +452,8 @@ void ShaderUnit::parseParameterConfiguration (
 		} else if (components == 3) {
 		    this->m_paintDefaultColors.emplace (
 			index, glm::vec4 (VectorBuilder::parse<glm::vec3> (colorStr), 1.0f));
+		} else {
+		    sLog.debug ("Unexpected component count in paintdefaultcolor for ", name, " in shader ", this->m_file);
 		}
 	    } catch (const std::exception& e) {
 		sLog.error ("Cannot parse paintdefaultcolor for ", name, " in shader ", this->m_file, ": ", e.what ());
