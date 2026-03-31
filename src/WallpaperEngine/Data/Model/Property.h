@@ -3,6 +3,7 @@
 #include "../Utils/TypeCaster.h"
 #include "DynamicValue.h"
 #include <map>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -103,9 +104,10 @@ public:
 		number = number[0] + number[0] + number[1] + number[1] + number[2] + number[2];
 	    }
 
-	    // remove alpha if it's present, should look into it more closely
+	    float alpha = 1.0f;
 	    if (number.size () > 6) {
-		sLog.error ("Color value has alpha channel, which is not supported");
+		const auto alphaHex = number.substr (number.size () - 2);
+		alpha = std::stoi (alphaHex, nullptr, 16) / 255.0f;
 		number = number.substr (0, 6);
 	    }
 
@@ -113,17 +115,25 @@ public:
 
 	    // format the number as float vector
 	    copy = std::to_string (((color >> 16) & 0xFF) / 255.0) + " "
-		+ std::to_string (((color >> 8) & 0xFF) / 255.0) + " " + std::to_string ((color & 0xFF) / 255.0);
+		+ std::to_string (((color >> 8) & 0xFF) / 255.0) + " "
+		+ std::to_string ((color & 0xFF) / 255.0) + " "
+		+ std::to_string (alpha);
 	} else if (copy.find ('.') == std::string::npos) {
-	    // integer vector, convert it to float vector
-	    const auto intcolor = VectorBuilder::parse<glm::ivec3> (copy);
+	    // integer vector, convert it to float vector; optionally parse 4th alpha component
+	    std::istringstream ss (copy);
+	    int r, g, b, a = 255;
+	    ss >> r >> g >> b;
+	    if (!(ss >> a)) a = 255;
 
-	    copy = std::to_string (intcolor.r / 255.0) + " " + std::to_string (intcolor.g / 255.0) + " "
-		+ std::to_string (intcolor.b / 255.0);
+	    copy = std::to_string (r / 255.0) + " " + std::to_string (g / 255.0) + " "
+		+ std::to_string (b / 255.0) + " " + std::to_string (a / 255.0);
+	} else if (VectorBuilder::preparseSize (copy) == 3) {
+	    // float RGB vector without alpha — append alpha=1.0
+	    copy += " 1.000000";
 	}
 
 	// finally parse the string as a float vector
-	this->update (VectorBuilder::parse<glm::vec3> (copy));
+	this->update (VectorBuilder::parse<glm::vec4> (copy));
     }
 
     [[nodiscard]] std::string dump () const override {
