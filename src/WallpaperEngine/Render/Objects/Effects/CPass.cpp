@@ -52,24 +52,24 @@ public:
     SolidColorTexture (const SolidColorTexture&) = delete;
     SolidColorTexture& operator= (const SolidColorTexture&) = delete;
 
-    GLuint getTextureID (uint32_t) const override { return m_textureID; }
-    uint32_t getTextureWidth (uint32_t) const override { return 1; }
-    uint32_t getTextureHeight (uint32_t) const override { return 1; }
-    uint32_t getRealWidth () const override { return 1; }
-    uint32_t getRealHeight () const override { return 1; }
-    WallpaperEngine::Data::Assets::TextureFormat getFormat () const override {
+    [[nodiscard]] GLuint getTextureID (uint32_t) const override { return m_textureID; }
+    [[nodiscard]] uint32_t getTextureWidth (uint32_t) const override { return 1; }
+    [[nodiscard]] uint32_t getTextureHeight (uint32_t) const override { return 1; }
+    [[nodiscard]] uint32_t getRealWidth () const override { return 1; }
+    [[nodiscard]] uint32_t getRealHeight () const override { return 1; }
+    [[nodiscard]] WallpaperEngine::Data::Assets::TextureFormat getFormat () const override {
 	return WallpaperEngine::Data::Assets::TextureFormat_ARGB8888;
     }
-    uint32_t getFlags () const override { return 0; }
-    const std::vector<WallpaperEngine::Data::Assets::FrameSharedPtr>& getFrames () const override {
+    [[nodiscard]] uint32_t getFlags () const override { return 0; }
+    [[nodiscard]] const std::vector<WallpaperEngine::Data::Assets::FrameSharedPtr>& getFrames () const override {
 	return m_frames;
     }
-    const glm::vec4* getResolution () const override { return &m_resolution; }
-    bool isAnimated () const override { return false; }
-    uint32_t getSpritesheetCols () const override { return 0; }
-    uint32_t getSpritesheetRows () const override { return 0; }
-    uint32_t getSpritesheetFrames () const override { return 0; }
-    float getSpritesheetDuration () const override { return 0.0f; }
+    [[nodiscard]] const glm::vec4* getResolution () const override { return &m_resolution; }
+    [[nodiscard]] bool isAnimated () const override { return false; }
+    [[nodiscard]] uint32_t getSpritesheetCols () const override { return 0; }
+    [[nodiscard]] uint32_t getSpritesheetRows () const override { return 0; }
+    [[nodiscard]] uint32_t getSpritesheetFrames () const override { return 0; }
+    [[nodiscard]] float getSpritesheetDuration () const override { return 0.0f; }
     void incrementUsageCount () const override {}
     void decrementUsageCount () const override {}
     void update () const override {}
