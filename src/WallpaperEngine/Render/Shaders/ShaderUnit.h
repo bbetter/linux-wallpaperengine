@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 
+#include <glm/vec4.hpp>
+
 #include "GLSLContext.h"
 #include "WallpaperEngine/Assets/AssetLocator.h"
 #include "WallpaperEngine/Data/JSON.h"
@@ -53,6 +55,10 @@ public:
      * @return The textures this shader unit requires
      */
     [[nodiscard]] const TextureMap& getTextures () const;
+    /**
+     * @return Per-slot solid-color fallback colors declared via paintdefaultcolor annotations
+     */
+    [[nodiscard]] const std::map<int, glm::vec4>& getPaintDefaultColors () const;
     /**
      * @return The combos set for this shader unit by the configuration
      */
@@ -153,6 +159,8 @@ private:
     const TextureMap& m_overrideTextures;
     /** The default textures to use when a texture is not applied in a given slot */
     TextureMap m_defaultTextures = {};
+    /** Per-slot solid-color fallback when no real texture covers a slot */
+    std::map<int, glm::vec4> m_paintDefaultColors = {};
     /**
      * The shader unit this unit is linked to
      */

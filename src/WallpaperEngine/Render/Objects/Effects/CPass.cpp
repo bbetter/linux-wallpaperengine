@@ -1,4 +1,5 @@
 #include "CPass.h"
+#include <algorithm>
 #include <sstream>
 #include <utility>
 
@@ -28,6 +29,55 @@ using namespace WallpaperEngine::Render::Objects::Effects;
 
 extern float g_Time;
 extern float g_Daytime;
+
+namespace {
+// Minimal 1×1 RGBA solid-color texture used as a paintdefaultcolor fallback.
+class SolidColorTexture final : public WallpaperEngine::Render::TextureProvider {
+public:
+    explicit SolidColorTexture (glm::vec4 color) {
+	glGenTextures (1, &m_textureID);
+	glBindTexture (GL_TEXTURE_2D, m_textureID);
+	uint8_t pixels[4] = {
+	    static_cast<uint8_t> (std::clamp (color.r, 0.0f, 1.0f) * 255.0f),
+	    static_cast<uint8_t> (std::clamp (color.g, 0.0f, 1.0f) * 255.0f),
+	    static_cast<uint8_t> (std::clamp (color.b, 0.0f, 1.0f) * 255.0f),
+	    static_cast<uint8_t> (std::clamp (color.a, 0.0f, 1.0f) * 255.0f),
+	};
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture (GL_TEXTURE_2D, 0);
+    }
+    ~SolidColorTexture () override { glDeleteTextures (1, &m_textureID); }
+
+    GLuint getTextureID (uint32_t) const override { return m_textureID; }
+    uint32_t getTextureWidth (uint32_t) const override { return 1; }
+    uint32_t getTextureHeight (uint32_t) const override { return 1; }
+    uint32_t getRealWidth () const override { return 1; }
+    uint32_t getRealHeight () const override { return 1; }
+    WallpaperEngine::Data::Assets::TextureFormat getFormat () const override {
+	return WallpaperEngine::Data::Assets::TextureFormat_ARGB8888;
+    }
+    uint32_t getFlags () const override { return 0; }
+    const std::vector<WallpaperEngine::Data::Assets::FrameSharedPtr>& getFrames () const override {
+	return m_frames;
+    }
+    const glm::vec4* getResolution () const override { return &m_resolution; }
+    bool isAnimated () const override { return false; }
+    uint32_t getSpritesheetCols () const override { return 0; }
+    uint32_t getSpritesheetRows () const override { return 0; }
+    uint32_t getSpritesheetFrames () const override { return 0; }
+    float getSpritesheetDuration () const override { return 0.0f; }
+    void incrementUsageCount () const override {}
+    void decrementUsageCount () const override {}
+    void update () const override {}
+
+private:
+    GLuint m_textureID = 0;
+    glm::vec4 m_resolution {1.0f, 1.0f, 1.0f, 1.0f};
+    std::vector<WallpaperEngine::Data::Assets::FrameSharedPtr> m_frames {};
+};
+} // anonymous namespace
 
 const TextureMap DEFAULT_BINDS = {};
 const ImageEffectPassOverride DEFAULT_OVERRIDE = {};
@@ -610,6 +660,18 @@ void CPass::setupTextureUniforms () {
 	} else if (!bind.empty ()) {
 	    // a normal bind, search for the corresponding FBO and set it
 	    this->m_textures[index] = this->resolveFBO (bind);
+	}
+    }
+
+    // fill any still-empty slots that have a paintdefaultcolor annotation
+    for (const auto& [index, color] : this->m_shader->getVertex ().getPaintDefaultColors ()) {
+	if (!this->m_textures.contains (index)) {
+	    this->m_textures[index] = std::make_shared<SolidColorTexture> (color);
+	}
+    }
+    for (const auto& [index, color] : this->m_shader->getFragment ().getPaintDefaultColors ()) {
+	if (!this->m_textures.contains (index)) {
+	    this->m_textures[index] = std::make_shared<SolidColorTexture> (color);
 	}
     }
 

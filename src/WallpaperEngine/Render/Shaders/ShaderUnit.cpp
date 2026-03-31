@@ -430,7 +430,6 @@ void ShaderUnit::parseParameterConfiguration (
 	// samplers can have special requirements, check what sampler we're working with and create definitions
 	// if needed
 	const auto textureName = data.find ("default");
-	// TODO: CREATE TEXTURE WITH THE GIVEN COLOR
 	const auto paintDefaultColor = data.find ("paintdefaultcolor");
 	// extract the texture number from the name suffix (supports g_Texture0 through g_Texture99+)
 	size_t index = 0;
@@ -443,6 +442,21 @@ void ShaderUnit::parseParameterConfiguration (
 	const auto requireany = data.find ("requireany");
 	const auto require = data.find ("require");
 	// TODO: SUPPORT USER TEXTURES!!
+
+	if (paintDefaultColor != data.end () && paintDefaultColor->is_string ()) {
+	    try {
+		const std::string& colorStr = paintDefaultColor->get<std::string> ();
+		const int components = VectorBuilder::preparseSize (colorStr);
+		if (components == 4) {
+		    this->m_paintDefaultColors.emplace (index, VectorBuilder::parse<glm::vec4> (colorStr));
+		} else if (components == 3) {
+		    this->m_paintDefaultColors.emplace (
+			index, glm::vec4 (VectorBuilder::parse<glm::vec3> (colorStr), 1.0f));
+		}
+	    } catch (const std::exception& e) {
+		sLog.error ("Cannot parse paintdefaultcolor for ", name, " in shader ", this->m_file, ": ", e.what ());
+	    }
+	}
 
 	if (combo != data.end ()) {
 	    // TODO: CLEANUP HOW THIS IS DETERMINED FIRST
@@ -624,3 +638,4 @@ const std::string& ShaderUnit::compile () {
 
 const std::vector<Variables::ShaderVariable*>& ShaderUnit::getParameters () const { return this->m_parameters; }
 const TextureMap& ShaderUnit::getTextures () const { return this->m_defaultTextures; }
+const std::map<int, glm::vec4>& ShaderUnit::getPaintDefaultColors () const { return this->m_paintDefaultColors; }
