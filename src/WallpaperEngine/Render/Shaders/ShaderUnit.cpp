@@ -432,13 +432,16 @@ void ShaderUnit::parseParameterConfiguration (
 	const auto textureName = data.find ("default");
 	// TODO: CREATE TEXTURE WITH THE GIVEN COLOR
 	const auto paintDefaultColor = data.find ("paintdefaultcolor");
-	// extract the texture number from the name
-	const char value = name.at (std::string ("g_Texture").length ());
+	// extract the texture number from the name suffix (supports g_Texture0 through g_Texture99+)
+	size_t index = 0;
+	try {
+	    index = std::stoul (name.substr (std::string ("g_Texture").length ()));
+	} catch (const std::exception&) {
+	    sLog.error ("Cannot parse texture index from name: ", name, " in shader ", this->m_file);
+	    return;
+	}
 	const auto requireany = data.find ("requireany");
 	const auto require = data.find ("require");
-	// now convert it to integer
-	// TODO: BETTER CONVERSION HERE
-	size_t index = value - '0';
 	// TODO: SUPPORT USER TEXTURES!!
 
 	if (combo != data.end ()) {
