@@ -602,6 +602,8 @@ struct TextData {
     float padding;
     /** Text box size in pixels */
     glm::vec2 size;
+    /** The effects applied to this text after it is rendered */
+    std::vector<ImageEffectUniquePtr> effects;
     /** Transform properties shared with Image objects */
     UserSettingUniquePtr scale;
     UserSettingUniquePtr angles;

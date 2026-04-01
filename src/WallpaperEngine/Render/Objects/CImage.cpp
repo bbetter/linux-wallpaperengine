@@ -271,11 +271,8 @@ void CImage::setup () {
 
     // TODO: CHECK ORDER OF THINGS, 2419444134'S ID 27 DEPENDS ON 104'S COMPOSITE_A WHEN OUR LAST RENDER IS ON
     // COMPOSITE_B
-    // TODO: SUPPORT PASSTHROUGH (IT'S A SHADER)
-    // passthrough images without effects are bad, do not draw them
-    if (this->m_image.model->passthrough && this->m_image.effects.empty ()) {
-	return;
-    }
+    // Passthrough layers still need their base material passes even when they have no extra effects.
+    // Skipping them drops compose layers entirely in some scene wallpapers.
 
     // copy pass to the composite layer
     for (const auto& cur : this->getImage ().model->material->passes) {

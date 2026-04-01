@@ -220,7 +220,15 @@ Render::CObject* CScene::createObject (const Object& object) {
 
 	renderObject = particle;
     } else if (object.is<Text> ()) {
-	renderObject = new Objects::CText (*this, *object.as<Text> ());
+	auto* text = new Objects::CText (*this, *object.as<Text> ());
+
+	try {
+	    text->setup ();
+	} catch (std::runtime_error&) {
+	    sLog.error ("Cannot setup text ", object.name);
+	}
+
+	renderObject = text;
     } else {
 	sLog.debug ("Unknown object type, creating placeholder, empty object: ", object.id);
 	renderObject = new CObject (*this, object);

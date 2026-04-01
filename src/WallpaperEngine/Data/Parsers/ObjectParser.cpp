@@ -898,6 +898,7 @@ ParticleInstanceOverride ObjectParser::parseParticleInstanceOverride (const JSON
 
 TextUniquePtr ObjectParser::parseText (const JSON& it, const Project& project, ObjectData base) {
     const auto& properties = project.properties;
+    const auto& effects = it.optional ("effects");
     const auto textIt = it.require ("text", "Text object must have a text field");
 
     std::string value = textIt.optional<std::string> ("value", "");
@@ -971,6 +972,7 @@ TextUniquePtr ObjectParser::parseText (const JSON& it, const Project& project, O
 	    .opaqueBackground = textOpt ("opaquebackground", false),
 	    .padding = textOpt ("padding", 0.0f),
 	    .size = textOpt ("size", glm::vec2 (256.0f, 64.0f)),
+	    .effects = effects.has_value () ? parseEffects (*effects, project) : std::vector<ImageEffectUniquePtr> {},
 	    .scale = it.user ("scale", properties, glm::vec3 (1.0f)),
 	    .angles = it.user ("angles", properties, glm::vec3 (0.0f)),
 	    .visible = it.user ("visible", properties, true),
