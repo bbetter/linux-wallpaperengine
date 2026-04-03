@@ -52,8 +52,10 @@ UserSettingUniquePtr UserSettingParser::parse (const json& data, const Propertie
     if (valueIt.is_string ()) {
 	std::string str = valueIt;
 
-	// TODO: VALIDATE THIS IS RIGHT?
-	if (int size = VectorBuilder::preparseSize (str); size == 2) {
+	if (str.find (' ') == std::string::npos) {
+	    // single-token string (e.g. "centre", "0") — not a vector
+	    value->update (str);
+	} else if (int size = VectorBuilder::preparseSize (str); size == 2) {
 	    value->update (static_cast<glm::vec2> (valueIt));
 	} else if (size == 3) {
 	    value->update (static_cast<glm::vec3> (valueIt));
