@@ -25,6 +25,13 @@ public:
 
     ~ScriptedDynamicValue () override = default;
 
+    [[nodiscard]] const std::string& getScriptSource () const { return m_scriptSource; }
+    [[nodiscard]] const std::map<std::string, DynamicValueUniquePtr>& getScriptProps () const { return m_scriptProps; }
+    [[nodiscard]] bool isObjectScript () const {
+        return m_scriptSource.find ("createLayer") != std::string::npos
+            || m_scriptSource.find ("thisScene.") != std::string::npos;
+    }
+
 private:
     void reevaluate ();
 

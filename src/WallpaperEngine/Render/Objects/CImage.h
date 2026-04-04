@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "CRenderable.h"
 #include "WallpaperEngine/Render/CObject.h"
 #include "WallpaperEngine/Render/Objects/Effects/CPass.h"
@@ -18,6 +20,10 @@ namespace WallpaperEngine::Render::Objects::Effects {
 class CMaterial;
 class CPass;
 } // namespace WallpaperEngine::Render::Objects::Effects
+
+namespace WallpaperEngine::Scripting {
+class ObjectScriptContext;
+}
 
 namespace WallpaperEngine::Render::Objects {
 class CEffect;
@@ -44,6 +50,19 @@ public:
     [[nodiscard]] GLuint getTexCoordPass () const;
 
     [[nodiscard]] const float& getBrightness () const override;
+
+    // Script-driven property overrides (set by ObjectScriptContext each frame)
+    void setScriptOrigin (const glm::vec3& v);
+    void setScriptScale (const glm::vec3& v);
+    void setScriptAngles (const glm::vec3& degrees);
+    void setScriptParallaxDepth (const glm::vec2& v);
+    void setScriptAlignment (const std::string& s);
+
+    [[nodiscard]] glm::vec3 getEffectiveOrigin () const;
+    [[nodiscard]] glm::vec3 getEffectiveScale () const;
+
+    // Called by CScene::renderFrame before the render loop
+    void runObjectScriptUpdate ();
     [[nodiscard]] const float& getUserAlpha () const override;
     [[nodiscard]] const float& getAlpha () const override;
     [[nodiscard]] const glm::vec3& getColor () const override;
@@ -62,6 +81,7 @@ protected:
     void setupPasses ();
 
     void updateScreenSpacePosition ();
+    void recomputePositionAndUploadVBO ();
 
 private:
     GLuint m_sceneSpacePosition;
@@ -97,6 +117,17 @@ private:
     glm::vec3 m_sceneCenter = {};
 
     bool m_initialized = false;
+
+    // Script-driven positional overrides (set per-frame by ObjectScriptContext)
+    std::optional<glm::vec3> m_overrideOrigin;
+    std::optional<glm::vec3> m_overrideScale;
+    std::optional<glm::vec3> m_overrideAngles;         // stored in radians
+    std::optional<glm::vec2> m_overrideParallaxDepth;
+    std::optional<std::string> m_overrideAlignment;
+    bool m_positionDirty = false;
+
+    // Persistent object script context (created when visible has a script with createLayer/thisScene)
+    std::unique_ptr<WallpaperEngine::Scripting::ObjectScriptContext> m_objectScriptCtx;
 
     struct {
 	struct {

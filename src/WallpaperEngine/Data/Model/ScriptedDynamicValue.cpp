@@ -27,6 +27,15 @@ ScriptedDynamicValue::ScriptedDynamicValue (
 }
 
 void ScriptedDynamicValue::reevaluate () {
+    // Object scripts (those using thisScene.createLayer / thisScene.getLayerIndex) drive
+    // CImage positions via ObjectScriptContext and do not produce a meaningful return value
+    // for the property they are attached to.  Retain the base value so the image stays
+    // visible and ObjectScriptContext handles everything else.
+    if (this->isObjectScript ()) {
+        this->update (m_baseValue);
+        return;
+    }
+
     // Build raw pointer map for the engine
     std::map<std::string, DynamicValue*> propsMap;
     for (const auto& [name, prop] : this->m_scriptProps) {

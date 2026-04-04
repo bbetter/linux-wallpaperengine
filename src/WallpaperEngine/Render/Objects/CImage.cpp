@@ -5,16 +5,21 @@
 #include <sstream>
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/constants.hpp>
 
 #include "WallpaperEngine/Data/Model/Material.h"
 #include "WallpaperEngine/Data/Model/Object.h"
+#include "WallpaperEngine/Data/Model/ScriptedDynamicValue.h"
 #include "WallpaperEngine/Data/Parsers/MaterialParser.h"
+#include "WallpaperEngine/Scripting/ObjectScriptContext.h"
 
 using namespace WallpaperEngine;
 using namespace WallpaperEngine::Render::Objects;
 using namespace WallpaperEngine::Render::Objects::Effects;
+using namespace WallpaperEngine::Data::Model;
 using namespace WallpaperEngine::Data::Parsers;
 using namespace WallpaperEngine::Data::Builders;
+using namespace WallpaperEngine::Scripting;
 
 CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
     CRenderable (scene, image, *image.model->material), m_sceneSpacePosition (GL_NONE), m_copySpacePosition (GL_NONE),
@@ -197,9 +202,10 @@ CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
 	= { -1.0, 1.0, 0.0f, -1.0, -1.0, 0.0f, 1.0, 1.0, 0.0f, 1.0, 1.0, 0.0f, -1.0, -1.0, 0.0f, 1.0, -1.0, 0.0f };
 
     // bind vertex list to the openGL buffers
+    // Use GL_DYNAMIC_DRAW so script-driven position updates can be uploaded efficiently
     glGenBuffers (1, &this->m_sceneSpacePosition);
     glBindBuffer (GL_ARRAY_BUFFER, this->m_sceneSpacePosition);
-    glBufferData (GL_ARRAY_BUFFER, sizeof (sceneSpacePosition), sceneSpacePosition, GL_STATIC_DRAW);
+    glBufferData (GL_ARRAY_BUFFER, sizeof (sceneSpacePosition), sceneSpacePosition, GL_DYNAMIC_DRAW);
 
     glGenBuffers (1, &this->m_copySpacePosition);
     glBindBuffer (GL_ARRAY_BUFFER, this->m_copySpacePosition);
@@ -396,6 +402,19 @@ void CImage::setup () {
     CRenderable::setup ();
 
     this->setupPasses ();
+
+    // Detect object scripts (thisScene.createLayer / thisScene.getLayerIndex)
+    // and create a persistent ObjectScriptContext for this CImage
+    const auto* sdv = dynamic_cast<const ScriptedDynamicValue*> (this->m_image.visible->value.get ());
+    if (sdv != nullptr && sdv->isObjectScript ()) {
+        std::map<std::string, DynamicValue*> rawProps;
+        for (const auto& [k, v] : sdv->getScriptProps ()) {
+            rawProps[k] = v.get ();
+        }
+        this->m_objectScriptCtx = std::make_unique<ObjectScriptContext> (*this, sdv->getScriptSource (), rawProps);
+        this->m_objectScriptCtx->init ();
+    }
+
     this->m_initialized = true;
 }
 
@@ -491,6 +510,11 @@ void CImage::render () {
 
     glColorMask (true, true, true, true);
 
+    // Recompute VBO if a script has updated origin/scale/alignment
+    if (this->m_positionDirty) {
+        this->recomputePositionAndUploadVBO ();
+    }
+
     // Always update screen transform (handles rotation + parallax dynamically)
     this->updateScreenSpacePosition ();
 
@@ -535,9 +559,11 @@ const glm::vec4& CImage::getColor4 () const { return this->m_image.color->value-
 const glm::vec3& CImage::getCompositeColor () const { return this->m_image.color->value->getVec3 (); }
 
 void CImage::updateScreenSpacePosition () {
-    // Build rotation from angles (already in radians from scene.json — see CParticle.cpp:2119)
-    // Negate X and Z rotations to account for Y-flipped coordinate system (CParticle.cpp:2120)
-    glm::vec3 angles = this->getImage ().angles->value->getVec3 ();
+    // Use script-overridden angles (in radians) if available, otherwise use data model angles
+    glm::vec3 angles = this->m_overrideAngles.has_value ()
+                           ? this->m_overrideAngles.value ()
+                           : this->getImage ().angles->value->getVec3 ();
+
     glm::mat4 rotModel = glm::mat4 (1.0f);
     if (angles.x != 0.0f || angles.y != 0.0f || angles.z != 0.0f) {
 	rotModel = glm::translate (rotModel, this->m_sceneCenter);
@@ -552,14 +578,17 @@ void CImage::updateScreenSpacePosition () {
 		   * rotModel;
 
     // Apply parallax displacement if enabled
+    // Use script-overridden parallax depth if available
     if (this->getScene ().getScene ().camera.parallax.enabled
 	&& !this->getImage ().model->fullscreen
 	&& !this->getScene ().getContext ().getApp ().getContext ().settings.mouse.disableparallax) {
 	const double parallaxAmount = this->getScene ().getScene ().camera.parallax.amount->value->getFloat ();
-	const glm::vec2 depth = this->getImage ().parallaxDepth->value->getVec2 ();
+	const glm::vec2 depth = this->m_overrideParallaxDepth.has_value ()
+	                            ? this->m_overrideParallaxDepth.value ()
+	                            : this->getImage ().parallaxDepth->value->getVec2 ();
 	const glm::vec2* displacement = this->getScene ().getParallaxDisplacement ();
-	float x = (depth.x + parallaxAmount) * displacement->x * this->getSize ().x;
-	float y = (depth.y + parallaxAmount) * displacement->y * this->getSize ().x;
+	float x = (depth.x + static_cast<float> (parallaxAmount)) * displacement->x * this->getSize ().x;
+	float y = (depth.y + static_cast<float> (parallaxAmount)) * displacement->y * this->getSize ().x;
 	mvp = glm::translate (mvp, { x, y, 0.0f });
     }
 
@@ -590,3 +619,103 @@ GLuint CImage::getPassSpacePosition () const { return this->m_passSpacePosition;
 GLuint CImage::getTexCoordCopy () const { return this->m_texcoordCopy; }
 
 GLuint CImage::getTexCoordPass () const { return this->m_texcoordPass; }
+
+// ---- Script-driven property overrides ----
+
+void CImage::setScriptOrigin (const glm::vec3& v) {
+    this->m_overrideOrigin = v;
+    this->m_positionDirty = true;
+}
+
+void CImage::setScriptScale (const glm::vec3& v) {
+    this->m_overrideScale = v;
+    this->m_positionDirty = true;
+}
+
+void CImage::setScriptAngles (const glm::vec3& degrees) {
+    // WPE JS API uses degrees; store in radians for the render pipeline
+    this->m_overrideAngles = glm::radians (degrees);
+}
+
+void CImage::setScriptParallaxDepth (const glm::vec2& v) {
+    this->m_overrideParallaxDepth = v;
+}
+
+void CImage::setScriptAlignment (const std::string& s) {
+    if (!s.empty () && s != this->m_overrideAlignment.value_or (this->m_image.alignment)) {
+        this->m_overrideAlignment = s;
+        this->m_positionDirty = true;
+    }
+}
+
+glm::vec3 CImage::getEffectiveOrigin () const {
+    return this->m_overrideOrigin.has_value () ? this->m_overrideOrigin.value ()
+                                               : this->m_image.origin->value->getVec3 ();
+}
+
+glm::vec3 CImage::getEffectiveScale () const {
+    return this->m_overrideScale.has_value () ? this->m_overrideScale.value ()
+                                              : this->m_image.scale->value->getVec3 ();
+}
+
+void CImage::runObjectScriptUpdate () {
+    if (this->m_objectScriptCtx)
+        this->m_objectScriptCtx->update ();
+}
+
+void CImage::recomputePositionAndUploadVBO () {
+    const auto scene_width = static_cast<float> (this->getScene ().getWidth ());
+    const auto scene_height = static_cast<float> (this->getScene ().getHeight ());
+
+    const glm::vec3 origin = this->getEffectiveOrigin ();
+    const glm::vec2 size = this->getSize ();
+    const glm::vec3 scale = this->getEffectiveScale ();
+    const std::string alignment = this->m_overrideAlignment.value_or (this->m_image.alignment);
+
+    const glm::vec2 scaledSize = size * glm::vec2 (scale);
+
+    this->m_pos.x = origin.x - (scaledSize.x / 2.0f);
+    this->m_pos.w = origin.y + (scaledSize.y / 2.0f);
+    this->m_pos.z = origin.x + (scaledSize.x / 2.0f);
+    this->m_pos.y = origin.y - (scaledSize.y / 2.0f);
+
+    if (alignment.find ("top") != std::string::npos) {
+        this->m_pos.y += scaledSize.y / 2.0f;
+        this->m_pos.w += scaledSize.y / 2.0f;
+    } else if (alignment.find ("bottom") != std::string::npos) {
+        this->m_pos.y -= scaledSize.y / 2.0f;
+        this->m_pos.w -= scaledSize.y / 2.0f;
+    }
+
+    if (alignment.find ("left") != std::string::npos) {
+        this->m_pos.x += scaledSize.x / 2.0f;
+        this->m_pos.z += scaledSize.x / 2.0f;
+    } else if (alignment.find ("right") != std::string::npos) {
+        this->m_pos.x -= scaledSize.x / 2.0f;
+        this->m_pos.z -= scaledSize.x / 2.0f;
+    }
+
+    this->m_pos.x -= scene_width / 2.0f;
+    this->m_pos.y = scene_height / 2.0f - this->m_pos.y;
+    this->m_pos.z -= scene_width / 2.0f;
+    this->m_pos.w = scene_height / 2.0f - this->m_pos.w;
+
+    // Update scene center for rotation
+    this->m_sceneCenter = glm::vec3 (
+        (this->m_pos.x + this->m_pos.z) / 2.0f,
+        (this->m_pos.y + this->m_pos.w) / 2.0f,
+        0.0f
+    );
+
+    // Upload updated vertices to GL
+    const GLfloat sceneSpacePosition[] = {
+        this->m_pos.x, this->m_pos.y, 0.0f, this->m_pos.x, this->m_pos.w, 0.0f,
+        this->m_pos.z, this->m_pos.y, 0.0f, this->m_pos.z, this->m_pos.y, 0.0f,
+        this->m_pos.x, this->m_pos.w, 0.0f, this->m_pos.z, this->m_pos.w, 0.0f,
+    };
+
+    glBindBuffer (GL_ARRAY_BUFFER, this->m_sceneSpacePosition);
+    glBufferSubData (GL_ARRAY_BUFFER, 0, sizeof (sceneSpacePosition), sceneSpacePosition);
+
+    this->m_positionDirty = false;
+}

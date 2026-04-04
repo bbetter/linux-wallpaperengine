@@ -12,6 +12,8 @@
 #include "WallpaperEngine/Data/Model/Wallpaper.h"
 #include "WallpaperEngine/Data/Parsers/ObjectParser.h"
 
+#include <algorithm>
+
 extern float g_Time;
 extern float g_TimeLast;
 
@@ -295,6 +297,13 @@ void CScene::renderFrame (const glm::ivec4& viewport) {
 	    = glm::mix (this->m_parallaxDisplacement, (this->m_mousePosition * amount) * influence, delay);
     }
 
+    // run object script updates (e.g. audio visualizer bar positioning) before rendering
+    for (const auto& cur : this->m_objectsByRenderOrder) {
+	if (cur->is<Objects::CImage> ()) {
+	    cur->as<Objects::CImage> ()->runObjectScriptUpdate ();
+	}
+    }
+
     // update main textures for images
     for (const auto& cur : this->m_objectsByRenderOrder) {
 	if (!cur->is<Objects::CImage> ()) {
@@ -368,3 +377,54 @@ const glm::vec2* CScene::getParallaxDisplacement () const { return &this->m_para
 const std::vector<CObject*>& CScene::getObjectsByRenderOrder () const { return this->m_objectsByRenderOrder; }
 
 const CObject* CScene::getObject (int id) const { return this->m_objects.at (id); }
+
+CObject* CScene::getMutableObject (int id) {
+    const auto it = this->m_objects.find (id);
+    if (it == this->m_objects.end ())
+        return nullptr;
+    return it->second;
+}
+
+int CScene::getLayerIndex (int id) const {
+    for (int i = 0; i < static_cast<int> (this->m_objectsByRenderOrder.size ()); i++) {
+        if (this->m_objectsByRenderOrder[i]->getId () == id)
+            return i;
+    }
+    return 0;
+}
+
+void CScene::sortScriptLayer (CObject* obj, int index) {
+    // Remove from current position if present
+    const auto it = std::ranges::find (this->m_objectsByRenderOrder, obj);
+    if (it != this->m_objectsByRenderOrder.end ())
+        this->m_objectsByRenderOrder.erase (it);
+
+    // Insert at clamped position
+    const int pos = std::clamp (index, 0, static_cast<int> (this->m_objectsByRenderOrder.size ()));
+    this->m_objectsByRenderOrder.insert (this->m_objectsByRenderOrder.begin () + pos, obj);
+}
+
+Objects::CImage* CScene::createScriptLayer (const std::string& modelPath) {
+    const int id = this->m_nextScriptLayerId--;
+    const float cx = static_cast<float> (this->getWidth ()) / 2.0f;
+    const float cy = static_cast<float> (this->getHeight ()) / 2.0f;
+
+    const JSON obj = {
+        { "image", modelPath },
+        { "name", "script_layer_" + std::to_string (-id) },
+        { "visible", true },
+        { "scale", "1.0 1.0 1.0" },
+        { "angles", "0.0 0.0 0.0" },
+        { "origin", std::to_string (cx) + " " + std::to_string (cy) + " 0.0" },
+        { "size", "4.0 4.0" },
+        { "id", id },
+    };
+
+    auto objData = ObjectParser::parse (obj, this->getScene ().project);
+    auto* rawObj = this->createObject (*objData);
+    this->m_scriptCreatedObjectData.push_back (std::move (objData));
+
+    if (rawObj && rawObj->is<Objects::CImage> ())
+        return rawObj->as<Objects::CImage> ();
+    return nullptr;
+}

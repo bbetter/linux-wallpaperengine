@@ -480,6 +480,8 @@ set(COMMON_SOURCES
     src/WallpaperEngine/VideoPlayback/MPV/MemoryStreamProtocol.h
     src/WallpaperEngine/Scripting/ScriptEngine.h
     src/WallpaperEngine/Scripting/ScriptEngine.cpp
+    src/WallpaperEngine/Scripting/ObjectScriptContext.h
+    src/WallpaperEngine/Scripting/ObjectScriptContext.cpp
     src/WallpaperEngine/Data/Model/ScriptedDynamicValue.h
     src/WallpaperEngine/Data/Model/ScriptedDynamicValue.cpp)
 
