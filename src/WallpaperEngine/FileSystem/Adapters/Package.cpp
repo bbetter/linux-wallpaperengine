@@ -20,7 +20,8 @@ ReadStreamSharedPtr PackageAdapter::open (const std::filesystem::path& path) con
     });
 
     if (it == this->package->files.end ()) {
-	throw std::filesystem::filesystem_error ("Cannot find file", path, std::error_code ());
+	throw std::filesystem::filesystem_error ("Cannot find file", path,
+	    std::make_error_code (std::errc::no_such_file_or_directory));
     }
 
     // read file into memory

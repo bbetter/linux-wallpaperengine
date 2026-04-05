@@ -44,7 +44,8 @@ std::shared_ptr<const TextureProvider> TextureCache::resolve (const std::string&
 	}
     }
 
-    throw AssetLoadException ("Cannot find file", filename, std::error_code ());
+    throw AssetLoadException ("Cannot find file", filename,
+	std::make_error_code (std::errc::no_such_file_or_directory));
 }
 
 void TextureCache::store (const std::string& name, std::shared_ptr<const TextureProvider> texture) {

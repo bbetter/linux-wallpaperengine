@@ -3,6 +3,7 @@
 #include "WallpaperEngine/Assets/AssetLoadException.h"
 
 #include <cstring>
+#include <system_error>
 
 using namespace WallpaperEngine::FileSystem;
 using namespace WallpaperEngine::FileSystem::Adapters;
@@ -11,7 +12,8 @@ ReadStreamSharedPtr VirtualAdapter::open (const std::filesystem::path& path) con
     const auto file = this->files.find (path);
 
     if (file == this->files.end ()) {
-	throw std::filesystem::filesystem_error ("Cannot find file", path, std::error_code ());
+	throw std::filesystem::filesystem_error ("Cannot find file", path,
+	    std::make_error_code (std::errc::no_such_file_or_directory));
     }
 
     return file->second;

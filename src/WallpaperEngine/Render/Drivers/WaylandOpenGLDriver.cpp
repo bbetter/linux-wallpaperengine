@@ -307,9 +307,11 @@ WaylandOpenGLDriver::WaylandOpenGLDriver (ApplicationContext& context, Wallpaper
     // glewExperimental lets GLEW load GL function pointers on EGL/Wayland
     // even without an active GLX display.
     glewExperimental = GL_TRUE;
-    if (const GLenum result = glewInit (); result != GLEW_OK) {
+    if (const GLenum result = glewInit ();
+	result != GLEW_OK && result != GLEW_ERROR_NO_GLX_DISPLAY) {
 	sLog.error ("Failed to initialize GLEW: ", glewGetErrorString (result));
     }
+    // GLEW_ERROR_NO_GLX_DISPLAY is expected on Wayland/EGL — rendering continues via EGL
 }
 
 WaylandOpenGLDriver::~WaylandOpenGLDriver () {

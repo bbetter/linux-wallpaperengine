@@ -60,10 +60,13 @@ ObjectUniquePtr ObjectParser::parse (const JSON& it, const Project& project) {
     } else if (lightIt != it.end ()) {
 	sLog.error ("Light objects are not supported yet");
     } else {
-	// dump the object for now, might want to change later
-	// TODO: RE-EVALUATE IF THIS MAKES SENSE, THERE'S OBJECTS THAT CONTAIN OTHER OBJECTS AND THUS AREN'T REALLY
-	// ANYTHING SPECIAL
-	sLog.error ("Unknown object type found: ", it.dump ());
+	const auto objectsIt = it.find ("objects");
+	if (objectsIt != it.end ()) {
+	    // Group container — holds child objects but has no renderable type itself
+	    sLog.debug ("Group object (no renderable type): ", basedata.name);
+	} else {
+	    sLog.error ("Unknown object type found: ", it.dump ());
+	}
     }
 
     return std::make_unique<Object> (std::move (basedata));
