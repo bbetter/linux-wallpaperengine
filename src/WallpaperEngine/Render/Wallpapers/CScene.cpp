@@ -212,12 +212,14 @@ Render::CObject* CScene::createObject (const Object& object) {
 	    return nullptr;
 	}
 
-	auto* particle = new Objects::CParticle (*this, *object.as<Particle> ());
-
+	Objects::CParticle* particle = nullptr;
 	try {
+	    particle = new Objects::CParticle (*this, *object.as<Particle> ());
 	    particle->setup ();
-	} catch (std::runtime_error&) {
-	    sLog.error ("Cannot setup particle ", particle->getParticle ().name);
+	} catch (std::runtime_error& ex) {
+	    sLog.error ("Cannot setup particle ", object.as<Particle> ()->name, ": ", ex.what ());
+	    delete particle;
+	    return nullptr;
 	}
 
 	renderObject = particle;

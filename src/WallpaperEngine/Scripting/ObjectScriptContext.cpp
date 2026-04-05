@@ -453,6 +453,7 @@ void ObjectScriptContext::init () {
         << "__tl.play=function(){};__tl.pause=function(){};__tl.stop=function(){};__tl.isPlaying=function(){return false;};\n"
         << "__tl.getParent=function(){return null;};__tl.getTransformMatrix=function(){return{m:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]};};__tl.getScene=function(){return null;};\n"
         << "var thisLayer=__tl;\n"
+        << "var thisObject=thisLayer;\n"
 
         // thisScene
         << "var __layerStub={origin:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},angles:{x:0,y:0,z:0},visible:true,\n"

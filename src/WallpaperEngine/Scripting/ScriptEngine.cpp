@@ -376,6 +376,7 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 	    << "    getParent:function(){return null;},getTransformMatrix:function(){return{m:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]};},\n"
 	    << "    getObject:function(){return null;},getScene:function(){return null;}\n"
 	    << "  };\n"
+	    << "  var thisObject = thisLayer;\n"
 	    << "  var thisScene = {getObject:function(){return null;},getCamera:function(){return null;},\n"
 	    << "    getLayer:function(n){return __layerStub;},\n"
 	    << "    enumerateLayers:function(){return [];}};\n"
