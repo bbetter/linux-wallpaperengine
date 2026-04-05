@@ -3,6 +3,7 @@
 #include "WallpaperEngine/Logging/Log.h"
 #include <cmath>
 #include <regex>
+#include <sstream>
 #include <stack>
 #include <string>
 #include <utility>
@@ -631,8 +632,59 @@ const std::string& ShaderUnit::compile () {
 	}
     }
 
-    // this should be the rest of the shader
-    this->m_final += this->m_preprocessed;
+    // Strip `const` from declarations whose initializer is non-constant (contains a function
+    // call or variable reference). GLSL 330 forbids e.g. `const vec4 x = texture(...)`.
+    {
+	static const std::regex constDecl (
+	    R"((\bconst\s+)((?:vec[234]|mat[234]|float|int|uint|bool)\s+\w+\s*=\s*[^;]*\([^;]*;))",
+	    std::regex::optimize
+	);
+	this->m_final += std::regex_replace (this->m_preprocessed, constDecl, "$2");
+    }
+
+    // Balance unmatched #endif directives: some workshop shaders have trailing #endif
+    // lines that outnumber the #if/#ifdef/#ifndef opens (usually off-by-one in the
+    // original source). Strip the excess #endif lines from the end of the source.
+    {
+	int depth = 0;
+	int maxNegative = 0;
+	std::istringstream ss (this->m_preprocessed);
+	std::string line;
+	while (std::getline (ss, line)) {
+	    const std::string trimmed = line.substr (line.find_first_not_of (" \t") != std::string::npos
+						     ? line.find_first_not_of (" \t") : 0);
+	    if (trimmed.rfind ("#if", 0) == 0)
+		depth++;
+	    else if (trimmed.rfind ("#endif", 0) == 0) {
+		depth--;
+		if (depth < maxNegative)
+		    maxNegative = depth;
+	    }
+	}
+	// If there are |maxNegative| excess #endif directives, strip that many from the end.
+	if (maxNegative < 0) {
+	    int toStrip = -maxNegative;
+	    std::string& src = this->m_final;
+	    // Walk backward through lines and remove the last `toStrip` #endif lines.
+	    size_t pos = src.size ();
+	    while (toStrip > 0 && pos > 0) {
+		size_t lineEnd = pos - 1;
+		while (lineEnd > 0 && src [lineEnd - 1] != '\n')
+		    lineEnd--;
+		const std::string_view ln (src.data () + lineEnd, pos - lineEnd);
+		size_t first = ln.find_first_not_of (" \t\r\n");
+		if (first != std::string_view::npos && ln.substr (first, 6) == "#endif") {
+		    src.erase (lineEnd, pos - lineEnd);
+		    toStrip--;
+		    pos = lineEnd;
+		} else if (ln.find_first_not_of (" \t\r\n") == std::string_view::npos) {
+		    pos = lineEnd; // skip blank lines
+		} else {
+		    break;
+		}
+	    }
+	}
+    }
 
     // the pass itself handles shader compilation, the unit doesn't have enough information for this step
     return this->m_final;

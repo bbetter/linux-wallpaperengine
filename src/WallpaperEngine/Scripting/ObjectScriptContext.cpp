@@ -428,6 +428,21 @@ void ObjectScriptContext::init () {
         << "  mod:function(x,y){return x-y*Math.floor(x/y);}\n"
         << "};\n"
         << "var console={log:function(){},warn:function(){},error:function(){},debug:function(){}};\n"
+        << "var WEColor={\n"
+        << "  hsv2rgb:function(hsv){var h=hsv.x*6,s=hsv.y,v=hsv.z,i=Math.floor(h),f=h-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s),r,g,b;\n"
+        << "    switch(i%6){case 0:r=v;g=t;b=p;break;case 1:r=q;g=v;b=p;break;case 2:r=p;g=v;b=t;break;\n"
+        << "                case 3:r=p;g=q;b=v;break;case 4:r=t;g=p;b=v;break;default:r=v;g=p;b=q;}\n"
+        << "    return new Vec3(r,g,b);\n"
+        << "  },\n"
+        << "  rgb2hsv:function(rgb){var r=rgb.x,g=rgb.y,b=rgb.z,mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn,h=0,s=mx?d/mx:0,v=mx;\n"
+        << "    if(d){if(mx===r)h=(g-b)/d+(g<b?6:0);else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h/=6;}\n"
+        << "    return new Vec3(h,s,v);\n"
+        << "  }\n"
+        << "};\n"
+        << "var MediaPlaybackEvent=function(type){this.type=type||'';this.track={title:'',artist:'',album:'',duration:0};this.position=0;this.isPlaying=false;};\n"
+        << "MediaPlaybackEvent.PLAY='play';MediaPlaybackEvent.PAUSE='pause';MediaPlaybackEvent.STOP='stop';\n"
+        << "MediaPlaybackEvent.NEXT='next';MediaPlaybackEvent.PREV='prev';MediaPlaybackEvent.SEEK='seek';\n"
+        << "var shared={};\n"
 
         // thisLayer
         << "var __tl={__ox:" << ownerOrigin.x << ",__oy:" << ownerOrigin.y << ",__oz:" << ownerOrigin.z
@@ -435,13 +450,20 @@ void ObjectScriptContext::init () {
         << ",__ax:" << ownerAngles.x << ",__ay:" << ownerAngles.y << ",__az:" << ownerAngles.z
         << ",__align:'" << ownerAlign << "',__pdx:" << ownerPd.x << ",__pdy:" << ownerPd.y << "};\n"
         << "__attachLayerProps(__tl);\n"
+        << "__tl.play=function(){};__tl.pause=function(){};__tl.stop=function(){};__tl.isPlaying=function(){return false;};\n"
+        << "__tl.getParent=function(){return null;};__tl.getTransformMatrix=function(){return{m:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]};};__tl.getScene=function(){return null;};\n"
         << "var thisLayer=__tl;\n"
 
         // thisScene
+        << "var __layerStub={origin:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},angles:{x:0,y:0,z:0},visible:true,\n"
+        << "  play:function(){},pause:function(){},stop:function(){},isPlaying:function(){return false;}};\n"
         << "var thisScene={\n"
         << "  createLayer:__createLayer,\n"
         << "  sortLayer:__sortLayer,\n"
-        << "  getLayerIndex:__getLayerIndex\n"
+        << "  getLayerIndex:__getLayerIndex,\n"
+        << "  getLayer:function(n){return __layerStub;},\n"
+        << "  enumerateLayers:function(){return [];},\n"
+        << "  getObject:function(){return null;},getCamera:function(){return null;}\n"
         << "};\n";
 
     const std::string preStr = pre.str ();

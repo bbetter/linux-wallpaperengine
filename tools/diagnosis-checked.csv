@@ -1,0 +1,6 @@
+id,title,type,error_category,error_detail,fixed
+1084199771,Duck Walking,scene,ok,,
+2851173631,Minimal Desktop,scene,ok,,
+2874243994,Desktop UI,scene,shader_parse,frag: ERROR: 0:366: 'non-constant initializer' : not supported for this version or the enabled extensions ,const non-constant initializer stripping
+2924081598,Super Mario Voxel,scene,ok,,
+3047596375,Starscape,scene,ok,,

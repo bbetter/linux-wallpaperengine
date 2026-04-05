@@ -8,7 +8,7 @@ fi
 # ensure the output and images directory exists
 [ -d "output" ] || mkdir output
 
-for folder in ~/.steam/steam/steamapps/workshop/content/431960/*; do
+for folder in /media/andrii/Entertainment/SteamLibrary/steamapps/workshop/content/431960/*; do
   # only directories matter
   if [ -d "$folder" ]; then
     bgid=$(basename "$folder")

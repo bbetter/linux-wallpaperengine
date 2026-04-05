@@ -29,6 +29,13 @@ ScriptEngine::ScriptEngine () {
 	this->m_runtime = nullptr;
 	return;
     }
+
+    // Initialise the persistent cross-script shared state object on globalThis.
+    // All scripts in the scene read/write the same __shared object, so it must
+    // survive across evaluate() calls rather than being recreated each time.
+    JSValue globalObj = JS_GetGlobalObject (this->m_context);
+    JS_SetPropertyStr (this->m_context, globalObj, "__shared", JS_NewObject (this->m_context));
+    JS_FreeValue (this->m_context, globalObj);
 }
 
 void ScriptEngine::setCanvasSize (float w, float h) {
@@ -297,9 +304,30 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 	    << "    return builder;\n"
 	    << "  }\n"
 	    // WPE global API stubs
-	    << "  var Vec2 = function(x,y){this.x=x||0;this.y=y||0;};\n"
-	    << "  var Vec3 = function(x,y,z){this.x=x||0;this.y=y||0;this.z=z||0;};\n"
-	    << "  var Vec4 = function(x,y,z,w){this.x=x||0;this.y=y||0;this.z=z||0;this.w=w||0;};\n"
+	    << "  var Vec2 = function(x,y){this.x=x||0;this.y=y||0;\n"
+	    << "    this.add=function(v){return new Vec2(this.x+v.x,this.y+v.y);};\n"
+	    << "    this.subtract=function(v){return new Vec2(this.x-v.x,this.y-v.y);};\n"
+	    << "    this.multiply=function(v){var s=typeof v==='number';return new Vec2(this.x*(s?v:v.x),this.y*(s?v:v.y));};\n"
+	    << "    this.divide=function(v){var s=typeof v==='number';return new Vec2(this.x/(s?v:v.x),this.y/(s?v:v.y));};\n"
+	    << "    this.copy=function(){return new Vec2(this.x,this.y);};\n"
+	    << "    this.length=function(){return Math.sqrt(this.x*this.x+this.y*this.y);};\n"
+	    << "  };\n"
+	    << "  var Vec3 = function(x,y,z){this.x=x||0;this.y=y||0;this.z=z||0;\n"
+	    << "    this.add=function(v){return new Vec3(this.x+v.x,this.y+v.y,this.z+(v.z||0));};\n"
+	    << "    this.subtract=function(v){return new Vec3(this.x-v.x,this.y-v.y,this.z-(v.z||0));};\n"
+	    << "    this.multiply=function(v){var s=typeof v==='number';return new Vec3(this.x*(s?v:v.x),this.y*(s?v:v.y),this.z*(s?v:(v.z||0)));};\n"
+	    << "    this.divide=function(v){var s=typeof v==='number';return new Vec3(this.x/(s?v:v.x),this.y/(s?v:v.y),this.z/(s?v:(v.z||1)));};\n"
+	    << "    this.copy=function(){return new Vec3(this.x,this.y,this.z);};\n"
+	    << "    this.length=function(){return Math.sqrt(this.x*this.x+this.y*this.y+this.z*this.z);};\n"
+	    << "  };\n"
+	    << "  var Vec4 = function(x,y,z,w){this.x=x||0;this.y=y||0;this.z=z||0;this.w=w||0;\n"
+	    << "    this.add=function(v){return new Vec4(this.x+v.x,this.y+v.y,this.z+(v.z||0),this.w+(v.w||0));};\n"
+	    << "    this.subtract=function(v){return new Vec4(this.x-v.x,this.y-v.y,this.z-(v.z||0),this.w-(v.w||0));};\n"
+	    << "    this.multiply=function(v){var s=typeof v==='number';return new Vec4(this.x*(s?v:v.x),this.y*(s?v:v.y),this.z*(s?v:(v.z||0)),this.w*(s?v:(v.w||0)));};\n"
+	    << "    this.divide=function(v){var s=typeof v==='number';return new Vec4(this.x/(s?v:v.x),this.y/(s?v:v.y),this.z/(s?v:(v.z||1)),this.w/(s?v:(v.w||1)));};\n"
+	    << "    this.copy=function(){return new Vec4(this.x,this.y,this.z,this.w);};\n"
+	    << "    this.length=function(){return Math.sqrt(this.x*this.x+this.y*this.y+this.z*this.z+this.w*this.w);};\n"
+	    << "  };\n"
 	    << "  var __audioZero = (function(){var a=[];for(var i=0;i<64;i++)a.push(0);return{average:a,peaks:a};})();\n"
 	    << "  var engine = {\n"
 	    << "    canvasSize: {x:" << this->m_canvasWidth << ",y:" << this->m_canvasHeight << "},\n"
@@ -323,14 +351,38 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 	    << "    fract: function(x){return x-Math.floor(x);},\n"
 	    << "    mod: function(x,y){return x-y*Math.floor(x/y);}\n"
 	    << "  };\n"
+	    << "  var WEColor = {\n"
+	    << "    hsv2rgb: function(hsv) {\n"
+	    << "      var h=hsv.x*6,s=hsv.y,v=hsv.z,i=Math.floor(h),f=h-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);\n"
+	    << "      var r,g,b;\n"
+	    << "      switch(i%6){case 0:r=v;g=t;b=p;break;case 1:r=q;g=v;b=p;break;case 2:r=p;g=v;b=t;break;\n"
+	    << "                  case 3:r=p;g=q;b=v;break;case 4:r=t;g=p;b=v;break;default:r=v;g=p;b=q;}\n"
+	    << "      return new Vec3(r,g,b);\n"
+	    << "    },\n"
+	    << "    rgb2hsv: function(rgb) {\n"
+	    << "      var r=rgb.x,g=rgb.y,b=rgb.z,mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn,h=0,s=mx?d/mx:0,v=mx;\n"
+	    << "      if(d){if(mx===r)h=(g-b)/d+(g<b?6:0);else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h/=6;}\n"
+	    << "      return new Vec3(h,s,v);\n"
+	    << "    }\n"
+	    << "  };\n"
 	    << "  var __texAnim = {getFrame:function(){return 0;},frameCount:1,duration:0,play:function(){},pause:function(){},stop:function(){},rate:1};\n"
+	    << "  var __layerStub = {origin:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},angles:{x:0,y:0,z:0},visible:true,\n"
+	    << "    play:function(){},pause:function(){},stop:function(){},isPlaying:function(){return false;},\n"
+	    << "    getParent:function(){return null;},getTransformMatrix:function(){return{m:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]};}};\n"
 	    << "  var thisLayer = {\n"
 	    << "    getAnimation:function(){return{rate:1,play:function(){},pause:function(){},stop:function(){}};},\n"
 	    << "    getTextureAnimation:function(){return __texAnim;},\n"
+	    << "    play:function(){},pause:function(){},stop:function(){},isPlaying:function(){return false;},\n"
+	    << "    getParent:function(){return null;},getTransformMatrix:function(){return{m:[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]};},\n"
 	    << "    getObject:function(){return null;},getScene:function(){return null;}\n"
 	    << "  };\n"
 	    << "  var thisScene = {getObject:function(){return null;},getCamera:function(){return null;},\n"
-	    << "    getLayer:function(n){return{origin:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},angles:{x:0,y:0,z:0},visible:true};}};\n"
+	    << "    getLayer:function(n){return __layerStub;},\n"
+	    << "    enumerateLayers:function(){return [];}};\n"
+	    << "  var MediaPlaybackEvent = function(type){this.type=type||'';this.track={title:'',artist:'',album:'',duration:0};this.position=0;this.isPlaying=false;};\n"
+	    << "  MediaPlaybackEvent.PLAY='play';MediaPlaybackEvent.PAUSE='pause';MediaPlaybackEvent.STOP='stop';\n"
+	    << "  MediaPlaybackEvent.NEXT='next';MediaPlaybackEvent.PREV='prev';MediaPlaybackEvent.SEEK='seek';\n"
+	    << "  var shared = globalThis.__shared;\n"
 	    << "  var console = {log:function(){},warn:function(){},error:function(){},debug:function(){}};\n";
 
     // Strip 'use strict'; and export/import keywords, embed the script body
