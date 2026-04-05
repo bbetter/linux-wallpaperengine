@@ -716,7 +716,13 @@ void CPass::setupUniforms () {
     this->addUniform ("g_UserAlpha", renderable.getUserAlpha ());
     this->addUniform ("g_Alpha", renderable.getAlpha ());
     this->addUniform ("g_Color", renderable.getColor ());
-    this->addUniform ("g_Color4", renderable.getColor4 ());
+    // Fold the object's alpha property into g_Color4.w so shaders that only read g_Color4
+    // (like genericimage4) respect the alpha/fade/brightness overlay settings.
+    {
+        glm::vec4 color4 = renderable.getColor4 ();
+        color4.w *= renderable.getAlpha ();
+        this->addUniform ("g_Color4", color4);
+    }
     // TODO: VALIDATE THAT G_COMPOSITECOLOR REALLY COMES FROM THIS ONE
     this->addUniform ("g_CompositeColor", renderable.getCompositeColor ());
     // add some external variables

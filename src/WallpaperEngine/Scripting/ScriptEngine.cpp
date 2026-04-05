@@ -310,7 +310,8 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
 	    << "    registerUpdateEvent:function(){},registerInitEvent:function(){},\n"
 	    << "    registerDestroyEvent:function(){},on:function(){},\n"
 	    << "    setTimeout:function(cb,delay){return 0;},clearTimeout:function(){},\n"
-	    << "    setInterval:function(cb,delay){return 0;},clearInterval:function(){}\n"
+	    << "    setInterval:function(cb,delay){return 0;},clearInterval:function(){},\n"
+	    << "    userProperties: { name: '' }\n"
 	    << "  };\n"
 	    << "  var WEMath = {\n"
 	    << "    smoothStep: function(edge0,edge1,x) {\n"
@@ -368,7 +369,7 @@ DynamicValueUniquePtr ScriptEngine::evaluate (
     wrapper << "  var input = globalThis.__currentValue;\n"
 	    << body << "\n"
 	    << "  if (typeof init === 'function') { try { init(); } catch(e) {} }\n"
-	    << "  if (typeof update === 'function') { return update(globalThis.__currentValue); }\n"
+	    << "  if (typeof update === 'function') { var __r = update(globalThis.__currentValue); if (__r !== undefined && __r !== null) return __r; if (thisLayer.text !== undefined) return thisLayer.text; return __r; }\n"
 	    << "  return globalThis.__currentValue;\n"
 	    << "})();\n";
 

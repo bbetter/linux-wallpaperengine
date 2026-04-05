@@ -12,8 +12,34 @@ extern "C" {
 #undef namespace
 #undef static
 
+#include <cstdlib>
+#include <string_view>
+
 using namespace WallpaperEngine::Render::Drivers;
 using namespace WallpaperEngine::Render::Drivers::Output;
+
+namespace {
+bool hasDesktopToken (const char* value, std::string_view token) {
+    if (value == nullptr) {
+	return false;
+    }
+
+    return std::string_view (value).find (token) != std::string_view::npos;
+}
+
+bool shouldReceivePointerInput (const WallpaperEngine::Application::ApplicationContext& context) {
+    if (!context.settings.mouse.enabled) {
+	return false;
+    }
+
+    // Plasma expects desktop clicks to reach the shell surface so the
+    // standard desktop context menu and other interactions keep working.
+    return !hasDesktopToken (std::getenv ("XDG_CURRENT_DESKTOP"), "KDE")
+	&& !hasDesktopToken (std::getenv ("XDG_CURRENT_DESKTOP"), "PLASMA")
+	&& !hasDesktopToken (std::getenv ("DESKTOP_SESSION"), "plasma")
+	&& std::getenv ("KDE_FULL_SESSION") == nullptr;
+}
+} // namespace
 
 static void handleLSConfigure (void* data, zwlr_layer_surface_v1* surface, uint32_t serial, uint32_t w, uint32_t h) {
     const auto viewport = static_cast<WaylandOutputViewport*> (data);
@@ -125,7 +151,10 @@ void WaylandOutputViewport::setupLS () {
     }
 
     wl_region* region = wl_compositor_create_region (m_driver->getWaylandContext ()->compositor);
-    wl_region_add (region, 0, 0, INT32_MAX, INT32_MAX);
+
+    if (shouldReceivePointerInput (m_driver->getApp ().getContext ())) {
+	wl_region_add (region, 0, 0, INT32_MAX, INT32_MAX);
+    }
 
     zwlr_layer_surface_v1_set_size (layerSurface, 0, 0);
     zwlr_layer_surface_v1_set_anchor (
@@ -137,6 +166,7 @@ void WaylandOutputViewport::setupLS () {
     zwlr_layer_surface_v1_add_listener (layerSurface, &layerSurfaceListener, this);
     zwlr_layer_surface_v1_set_exclusive_zone (layerSurface, -1);
     wl_surface_set_input_region (surface, region);
+    wl_region_destroy (region);
     wl_surface_commit (surface);
     wl_display_roundtrip (m_driver->getWaylandContext ()->display);
 

@@ -198,9 +198,9 @@ Render::CObject* CScene::createObject (const Object& object) {
 
 	try {
 	    image->setup ();
-	} catch (std::runtime_error&) {
+	} catch (std::runtime_error& ex) {
 	    // this error message is already printed, so just show extra info about it
-	    sLog.error ("Cannot setup image ", image->getImage ().name);
+	    sLog.error ("Cannot setup image ", image->getImage ().name, ": ", ex.what ());
 	}
 
 	renderObject = image;
