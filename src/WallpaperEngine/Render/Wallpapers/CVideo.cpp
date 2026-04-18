@@ -25,7 +25,18 @@ CVideo::CVideo (
 	this->getContext (), this->CWallpaper::getWallpaperTexture (), videopath, 64, 64,
 	this->CWallpaper::getWallpaperFramebuffer ()
     );
-    this->m_player->setVolume (this->getContext ().getApp ().getContext ().settings.audio.volume * 100.0 / 128.0);
+    const auto& audioSettings = this->getContext ().getApp ().getContext ().settings.audio;
+    if (!audioSettings.enabled) {
+	this->m_player->setMuted ();
+	this->m_muted = true;
+    } else {
+	this->m_player->setVolume (audioSettings.volume * 100.0 / 128.0);
+	// initialise mute state to match the current automute detector so the first frame is silent if needed
+	if (this->getAudioContext ().getDriver ().getAudioDetector ().anythingPlaying ()) {
+	    this->m_player->setMuted ();
+	    this->m_muted = true;
+	}
+    }
     // make sure the video has at least one usage marked, this ensures the video plays
     this->m_player->incrementUsageCount ();
 }
@@ -33,15 +44,16 @@ CVideo::CVideo (
 CVideo::~CVideo () { this->m_player->decrementUsageCount (); }
 
 void CVideo::renderFrame (const glm::ivec4& viewport) {
-    // ensure the video's audio follows audio detection rules
-    if (this->getContext ().getApp ().getContext ().settings.audio.enabled
-	&& this->m_muted != this->getAudioContext ().getDriver ().getAudioDetector ().anythingPlaying ()) {
-	this->m_muted = !this->m_muted;
-
-	if (this->m_muted) {
-	    this->m_player->setMuted ();
-	} else {
-	    this->m_player->clearMuted ();
+    // keep video mute state in sync with the automute detector (only when audio is enabled)
+    if (this->getContext ().getApp ().getContext ().settings.audio.enabled) {
+	const bool shouldMute = this->getAudioContext ().getDriver ().getAudioDetector ().anythingPlaying ();
+	if (shouldMute != this->m_muted) {
+	    this->m_muted = shouldMute;
+	    if (this->m_muted) {
+		this->m_player->setMuted ();
+	    } else {
+		this->m_player->clearMuted ();
+	    }
 	}
     }
 

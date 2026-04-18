@@ -69,7 +69,6 @@ void audio_callback (void* userdata, uint8_t* streamData, int length) {
 	}
     }
 
-    // TODO: DO WE NEED TO ALSO LOCK WHILE THE AUDIO IS PLAYING? OR SOMEHOW WAIT UNTIL THE STREAM IS NOT IN USE ANYMORE?
     SDL_UnlockMutex (driver->getStreamMutex ());
 }
 
@@ -116,6 +115,10 @@ SDLAudioDriver::~SDLAudioDriver () {
     }
 
     SDL_QuitSubSystem (SDL_INIT_AUDIO);
+
+    for (const auto& [id, buffer] : this->m_streams) {
+	delete buffer;
+    }
 }
 
 int SDLAudioDriver::addStream (AudioStream* stream) {
@@ -132,7 +135,11 @@ int SDLAudioDriver::addStream (AudioStream* stream) {
 }
 void SDLAudioDriver::removeStream (int streamId) {
     SDL_LockMutex (this->m_streamListMutex);
-    this->m_streams.erase (streamId);
+    const auto it = this->m_streams.find (streamId);
+    if (it != this->m_streams.end ()) {
+	delete it->second;
+	this->m_streams.erase (it);
+    }
     SDL_UnlockMutex (this->m_streamListMutex);
 }
 
