@@ -811,13 +811,17 @@ template <typename T> void CPass::addUniform (const std::string& name, UniformTy
 	return;
     }
 
-    // free the uniform that's already registered if it's there already
-
+    // if a value uniform with this name exists, remove it before switching to a reference uniform
     if (const auto it = this->m_uniforms.find (name); it != this->m_uniforms.end ()) {
+	delete it->second;
+	this->m_uniforms.erase (it);
+    }
+
+    // if a reference uniform with this name already exists, free it before replacing
+    if (const auto it = this->m_referenceUniforms.find (name); it != this->m_referenceUniforms.end ()) {
 	delete it->second;
     }
 
-    // uniform found, add it to the list
     this->m_referenceUniforms.insert_or_assign (
 	name, new ReferenceUniformEntry (id, name, type, reinterpret_cast<const void**> (value))
     );
