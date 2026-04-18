@@ -175,6 +175,8 @@ private:
     ReadStreamSharedPtr m_buffer = nullptr;
     /** The length of the file data pointer */
     uint32_t m_length = 0;
+    /** Tracks remaining bytes in the current packet being decoded (per-stream, not shared) */
+    int m_audioPktSize = 0;
 
     struct MyAVPacketList {
 	AVPacket* packet;
