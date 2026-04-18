@@ -4,14 +4,29 @@
 using namespace WallpaperEngine::Render;
 using namespace WallpaperEngine::Data::Model;
 
+static TextureFormat fboFormatFromString (const std::string& fmt) {
+    if (fmt == "rgba8888" || fmt == "argb8888") return TextureFormat_ARGB8888;
+    if (fmt == "rgb888")                         return TextureFormat_RGB888;
+    if (fmt == "rgb565")                         return TextureFormat_RGB565;
+    if (fmt == "rgba16f" || fmt == "rgba16161616f") return TextureFormat_RGBA16161616f;
+    if (fmt == "rgb16f"  || fmt == "rgb161616f")    return TextureFormat_RGB161616f;
+    if (fmt == "rg16f"   || fmt == "rg1616f")       return TextureFormat_RG1616f;
+    if (fmt == "r16f")                           return TextureFormat_R16f;
+    if (fmt == "rg88")                           return TextureFormat_RG88;
+    if (fmt == "r8")                             return TextureFormat_R8;
+    if (fmt == "bc7")                            return TextureFormat_BC7;
+    if (fmt == "rgba1010102")                    return TextureFormat_RGBa1010102;
+    // unknown format — fall back to ARGB8888 so the FBO is always usable
+    return TextureFormat_ARGB8888;
+}
+
 FBOProvider::FBOProvider (const FBOProvider* parent) : m_parent (parent) { }
 
 std::shared_ptr<CFBO> FBOProvider::create (const FBO& base, uint32_t flags, const glm::vec2 size) {
     return this->m_fbos[base.name] = std::make_shared<CFBO> (
 	       base.name,
-	       // TODO: PROPERLY DETERMINE FBO FORMAT BASED ON THE STRING
-	       TextureFormat_ARGB8888, flags, base.scale, size.x / base.scale, size.y / base.scale, size.x / base.scale,
-	       size.y / base.scale
+	       fboFormatFromString (base.format), flags, base.scale, size.x / base.scale, size.y / base.scale,
+	       size.x / base.scale, size.y / base.scale
 	   );
 }
 

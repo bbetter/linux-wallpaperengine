@@ -521,9 +521,16 @@ void CPass::setupShaders () {
     const std::string& shaderName
 	= this->m_override.shaderOverride.has_value () ? this->m_override.shaderOverride.value () : this->m_pass.shader;
 
+    // merge user textures into the pass texture map so the shader unit sees them
+    // when evaluating texture-slot combo conditions; user textures only fill empty slots
+    TextureMap mergedTextures = this->m_pass.textures;
+    for (const auto& [index, name] : this->m_pass.usertextures) {
+	mergedTextures.try_emplace (index, name);
+    }
+
     this->m_shader = new Render::Shaders::Shader (
 	this->m_renderable.getAssetLocator (), shaderName, this->m_combos, this->m_override.combos,
-	this->m_pass.textures, this->m_override.textures, this->m_override.constants
+	mergedTextures, this->m_override.textures, this->m_override.constants
     );
 
     const auto [vertex, fragment]
@@ -637,6 +644,20 @@ void CPass::setupTextureUniforms () {
 	    }
 	} catch (std::runtime_error& ex) {
 	    sLog.error ("Cannot resolve texture ", textureName, " for pass ", ex.what ());
+	}
+    }
+
+    // resolve user textures for any slot not already bound by pass or shader defaults
+    for (const auto& [index, textureName] : this->m_pass.usertextures) {
+	if (this->m_textures.contains (index)) {
+	    continue;
+	}
+	try {
+	    if (!textureName.empty ()) {
+		this->m_textures[index] = this->getContext ().resolveTexture (textureName);
+	    }
+	} catch (std::runtime_error& ex) {
+	    sLog.error ("Cannot resolve user texture ", textureName, " for slot ", index, ": ", ex.what ());
 	}
     }
 

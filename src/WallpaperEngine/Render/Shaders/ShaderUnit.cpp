@@ -339,7 +339,6 @@ void ShaderUnit::preprocessRequires () {
 }
 
 void ShaderUnit::parseComboConfiguration (const std::string& content, const int defaultValue) {
-    // TODO: SUPPORT REQUIRES SO WE PROPERLY FOLLOW THE REQUIRED CHAIN
     JSON data;
     try {
 	data = JSON::parse (content);
@@ -351,6 +350,21 @@ void ShaderUnit::parseComboConfiguration (const std::string& content, const int 
     // ignore type as it seems to be used only on the editor
     // const auto type = data.find ("type");
     const auto defvalue = data.find ("default");
+
+    // honour the require chain: this combo only applies when all listed combos already have the specified values
+    if (const auto require = data.find ("require"); require != data.end () && require->is_object ()) {
+	for (const auto& item : require->items ()) {
+	    const std::string& requiredCombo = item.key ();
+	    const int requiredValue = item.value ().is_number () ? item.value ().get<int> () : 0;
+	    const auto it = this->m_combos.find (requiredCombo);
+	    const auto ito = this->m_overrideCombos.find (requiredCombo);
+	    const bool satisfied = (it != this->m_combos.end () && it->second == requiredValue)
+				|| (ito != this->m_overrideCombos.end () && ito->second == requiredValue);
+	    if (!satisfied) {
+		return;
+	    }
+	}
+    }
 
     // check the combos
     const auto entry = this->m_combos.find (combo);
