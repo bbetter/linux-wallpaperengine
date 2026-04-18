@@ -98,22 +98,25 @@ CPass::CPass (
 }
 
 CPass::~CPass () {
-    // destroy shader programs
-    if (!glIsProgram(this->m_programID)) return; // program already invalid or deleted
+    for (const auto attrib : this->m_attribs) delete attrib;
+    for (const auto& [k, uniform] : this->m_uniforms) delete uniform;
+    for (const auto& [k, ref] : this->m_referenceUniforms) delete ref;
+
+    if (!glIsProgram (this->m_programID)) return;
 
     GLint shaderCount = 0;
-    glGetProgramiv(this->m_programID, GL_ATTACHED_SHADERS, &shaderCount);
+    glGetProgramiv (this->m_programID, GL_ATTACHED_SHADERS, &shaderCount);
 
     if (shaderCount > 0) {
-        std::vector<GLuint> attachedShaders(shaderCount);
-        glGetAttachedShaders(this->m_programID, shaderCount, nullptr, attachedShaders.data());
+        std::vector<GLuint> attachedShaders (shaderCount);
+        glGetAttachedShaders (this->m_programID, shaderCount, nullptr, attachedShaders.data ());
 
         for (GLuint s : attachedShaders) {
-            if (glIsShader(s)) glDeleteShader(s);
+            if (glIsShader (s)) glDeleteShader (s);
         }
     }
 
-    glDeleteProgram(this->m_programID);
+    glDeleteProgram (this->m_programID);
     this->m_programID = 0;
 }
 

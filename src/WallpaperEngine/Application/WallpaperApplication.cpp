@@ -551,7 +551,7 @@ void WallpaperApplication::takeScreenshot (const std::filesystem::path& filename
 	// make room for storing the pixel of this viewport
 	const int readWidth = wallpaper->getWidth ();
 	const int readHeight = wallpaper->getHeight ();
-	const auto bufferSize = readWidth * readHeight * 3;
+	const auto bufferSize = static_cast<size_t> (readWidth) * static_cast<size_t> (readHeight) * 3;
 	auto* buffer = new uint8_t[bufferSize];
 
 	// read the FBO data into the pixel buffer
@@ -588,7 +588,7 @@ void WallpaperApplication::takeScreenshot (const std::filesystem::path& filename
 
     // Offload pixel processing and saving to a background thread to avoid hitches
     std::thread ([captures, width, height, vflip, extStr, filename] () {
-	auto* bitmap = new uint8_t[width * height * 3] { 0 };
+	auto* bitmap = new uint8_t[static_cast<size_t> (width) * static_cast<size_t> (height) * 3] { 0 };
 
 	for (const auto& capture : captures) {
 	    // copy pixels to bitmap, sampling from the UV-defined region
