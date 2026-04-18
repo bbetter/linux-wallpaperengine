@@ -20,7 +20,7 @@ std::shared_ptr<CFBO> FBOProvider::create (
     glm::vec2 textureSize
 ) {
     return this->m_fbos[name] = std::make_shared<CFBO> (
-	       name, TextureFormat_ARGB8888, flags, scale, realSize.x, realSize.y, textureSize.x, textureSize.y
+	       name, format, flags, scale, realSize.x, realSize.y, textureSize.x, textureSize.y
 	   );
 }
 

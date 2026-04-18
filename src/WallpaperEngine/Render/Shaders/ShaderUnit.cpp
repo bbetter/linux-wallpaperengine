@@ -145,9 +145,11 @@ void ShaderUnit::preprocessIncludes () {
     size_t start = 0, end = 0;
     // prepare the include content
     while ((start = this->m_preprocessed.find ("#include", end)) != std::string::npos) {
-	// TODO: CHECK FOR ERRORS HERE, MALFORMED INCLUDES WILL NOT BE PROPERLY HANDLED
-	const size_t quoteStart = this->m_preprocessed.find_first_of ('"', start) + 1;
+	const size_t quoteOpen = this->m_preprocessed.find_first_of ('"', start);
+	if (quoteOpen == std::string::npos) { end = start + 1; continue; }
+	const size_t quoteStart = quoteOpen + 1;
 	const size_t quoteEnd = this->m_preprocessed.find_first_of ('"', quoteStart);
+	if (quoteEnd == std::string::npos) { end = start + 1; continue; }
 	const std::string filename = this->m_preprocessed.substr (quoteStart, quoteEnd - quoteStart);
 
 	// some includes might not be present
@@ -184,9 +186,11 @@ void ShaderUnit::preprocessIncludes () {
     // then apply includes in-place
     while ((start = this->m_includes.find ("#include", end)) != std::string::npos) {
 	const size_t lineEnd = this->m_includes.find_first_of ('\n', start);
-	// TODO: CHECK FOR ERRORS HERE, MALFORMED INCLUDES WILL NOT BE PROPERLY HANDLED
-	const size_t quoteStart = this->m_includes.find_first_of ('"', start) + 1;
+	const size_t quoteOpen = this->m_includes.find_first_of ('"', start);
+	if (quoteOpen == std::string::npos) { end = start + 1; continue; }
+	const size_t quoteStart = quoteOpen + 1;
 	const size_t quoteEnd = this->m_includes.find_first_of ('"', quoteStart);
+	if (quoteEnd == std::string::npos) { end = start + 1; continue; }
 	const std::string filename = this->m_includes.substr (quoteStart, quoteEnd - quoteStart);
 
 	// some includes might not be present
