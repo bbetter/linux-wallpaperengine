@@ -594,6 +594,20 @@ void CPass::setupShaders () {
     // support three textures for now
     this->g_Texture0Rotation = glGetUniformLocation (this->m_programID, "g_Texture0Rotation");
     this->g_Texture0Translation = glGetUniformLocation (this->m_programID, "g_Texture0Translation");
+
+    // The generated GLSL declares sampler uniforms with "layout(binding = N)", but glslang never
+    // actually assigns distinct bindings for them (mapIO() is never called), so SPIRV-Cross emits
+    // "binding = 0" for every sampler, aliasing g_Texture0/1/2 to the same texture unit. Fixing that
+    // at the GLSL-generation level would require GL_ARB_shading_language_420pack to be active, which
+    // isn't guaranteed everywhere, so bind each sampler uniform to its texture unit explicitly here
+    // instead — this works on any GL 2.0+ context regardless of that extension.
+    glUseProgram (this->m_programID);
+    for (int i = 0; i < 3; i++) {
+	const GLint samplerLoc = glGetUniformLocation (this->m_programID, ("g_Texture" + std::to_string (i)).c_str ());
+	if (samplerLoc != -1) {
+	    glUniform1i (samplerLoc, i);
+	}
+    }
 }
 
 void CPass::setupAttributes () {

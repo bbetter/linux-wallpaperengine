@@ -54,8 +54,17 @@ CFBO::CFBO (
 	sLog.exception ("Framebuffers are not properly set");
     }
 
-    // clear the framebuffer
+    // Clear the framebuffer to fully transparent, regardless of whatever clear color is
+    // currently set globally (e.g. CScene sets the scene's opaque background color before
+    // objects/effects are constructed). Intermediate/effect FBOs must start transparent so
+    // multi-pass effects (blur, bloom, etc.) don't bleed the scene's background color into
+    // areas that were never explicitly drawn to. Restore the previous clear color afterwards
+    // since it's global GL state relied upon elsewhere (e.g. the main scene's per-frame clear).
+    GLfloat previousClearColor[4];
+    glGetFloatv (GL_COLOR_CLEAR_VALUE, previousClearColor);
+    glClearColor (0.0f, 0.0f, 0.0f, 0.0f);
     glClear (GL_COLOR_BUFFER_BIT);
+    glClearColor (previousClearColor[0], previousClearColor[1], previousClearColor[2], previousClearColor[3]);
 
     this->m_resolution = { textureWidth, textureHeight, realWidth, realHeight };
 

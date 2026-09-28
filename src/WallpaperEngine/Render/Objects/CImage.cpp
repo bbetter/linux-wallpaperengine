@@ -2,7 +2,10 @@
 
 #include "CRenderable.h"
 
+#include <cstdint>
+#include <cstring>
 #include <sstream>
+#include <vector>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/constants.hpp>
@@ -11,6 +14,8 @@
 #include "WallpaperEngine/Data/Model/Object.h"
 #include "WallpaperEngine/Data/Model/ScriptedDynamicValue.h"
 #include "WallpaperEngine/Data/Parsers/MaterialParser.h"
+#include "WallpaperEngine/Data/Utils/BinaryReader.h"
+#include "WallpaperEngine/Render/Objects/CText.h"
 #include "WallpaperEngine/Scripting/ObjectScriptContext.h"
 
 using namespace WallpaperEngine;
@@ -37,9 +42,23 @@ CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
     glm::vec2 size = this->getSize ();
     glm::vec3 scale = this->getImage ().scale->value->getVec3 ();
 
-    // TODO: PROPERLY SUPPORT PARENTS, FOR NOW THIS SHOULD BE ENOUGH
+    // Compose with the parent's transform: WPE expresses a child's origin/scale in the
+    // parent's local space, so both must be scaled by the parent before being added/multiplied.
+    // Without this, objects nested under a scaled-down parent render at their raw,
+    // un-composed size/position instead of the intended small satellite placement.
     if (this->m_image.parent.has_value ()) {
-	origin += this->getScene ().getObject (this->m_image.parent.value ())->getObject ().origin->value->getVec3 ();
+	const auto* parentObj = this->getScene ().getObject (this->m_image.parent.value ());
+	if (parentObj != nullptr) {
+	    const glm::vec3 parentOrigin = parentObj->getObject ().origin->value->getVec3 ();
+	    glm::vec3 parentScale (1.0f);
+	    if (parentObj->is<CImage> ()) {
+		parentScale = parentObj->as<CImage> ()->getImage ().scale->value->getVec3 ();
+	    } else if (parentObj->is<CText> ()) {
+		parentScale = parentObj->as<CText> ()->getText ().scale->value->getVec3 ();
+	    }
+	    origin = parentOrigin + parentScale * origin;
+	    scale *= parentScale;
+	}
     }
 
     this->detectTexture ();
@@ -76,6 +95,11 @@ CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
 	origin = { scene_width / 2, scene_height / 2, 0 };
 
 	// TODO: CHANGE ALIGNMENT TOO?
+    }
+
+    // Parse puppet mesh if this object has one
+    if (this->getImage ().model->puppet.has_value ()) {
+        this->parsePuppetMesh (size);
     }
 
     glm::vec2 scaledSize = size * glm::vec2 (scale);
@@ -239,6 +263,12 @@ CImage::CImage (Wallpapers::CScene& scene, const Image& image) :
 	// (scene-space vertices) correctly projects to scene UV for sampling _rt_FullFrameBuffer.
 	this->m_modelViewProjectionCopy = this->getScene ().getCamera ().getProjection ()
 	    * this->getScene ().getCamera ().getLookAt ();
+    } else if (this->m_puppetMesh) {
+	// Puppet vertices are in centered local space: (-w/2 .. +w/2, -h/2 .. +h/2).
+	// Y-axis is flipped relative to OpenGL FBO convention (FBO row 0 = screen bottom,
+	// but puppet Y+ = screen top in WPE scene coords → need Y-down ortho so the FBO
+	// is upright when rendered via the scene camera which also flips Y).
+	this->m_modelViewProjectionCopy = glm::ortho<float> (-size.x / 2, size.x / 2, size.y / 2, -size.y / 2);
     } else {
 	this->m_modelViewProjectionCopy = glm::ortho<float> (0.0, size.x, 0.0, size.y);
     }
@@ -267,6 +297,105 @@ CImage::~CImage () {
     glDeleteBuffers (1, &this->m_passSpacePosition);
     glDeleteBuffers (1, &this->m_texcoordCopy);
     glDeleteBuffers (1, &this->m_texcoordPass);
+
+    if (this->m_puppetMesh) {
+        glDeleteBuffers (1, &this->m_puppetMesh->vbo);
+        glDeleteBuffers (1, &this->m_puppetMesh->ibo);
+    }
+}
+
+void CImage::parsePuppetMesh (const glm::vec2& size) {
+    using namespace WallpaperEngine::Data::Utils;
+
+    const auto& puppetPath = this->getImage ().model->puppet.value ();
+
+    ReadStreamSharedPtr stream;
+    try {
+        stream = this->getAssetLocator ().read (puppetPath);
+    } catch (const std::exception& e) {
+        sLog.error ("Puppet MDL not found: ", puppetPath, " (", e.what (), ")");
+        return;
+    }
+
+    BinaryReader reader (stream);
+
+    // Skip null-terminated magic header ("MDLV0013")
+    (void)reader.nextNullTerminatedString ();
+    // Read first, second, third DWORDs
+    const uint32_t hdr1 = reader.nextUInt32 ();
+    const uint32_t hdr2 = reader.nextUInt32 ();
+    const uint32_t hdr3 = reader.nextUInt32 ();
+    // Read null-terminated JSON path
+    const std::string jsonPath = reader.nextNullTerminatedString ();
+    // Read fourth DWORD
+    const uint32_t hdr4 = reader.nextUInt32 ();
+    sLog.out ("MDL header DWORDs: ", hdr1, " ", hdr2, " ", hdr3, " | jsonPath=", jsonPath, " | hdr4=", hdr4);
+
+    const uint32_t vertexByteLength = reader.nextUInt32 ();
+    // Each MDL vertex is 52 bytes: VECTOR3(12) + BLENDINDICES(16) + VECTOR4(16) + VECTOR2(8)
+    constexpr uint32_t MDL_VERTEX_STRIDE = 52;
+    const uint32_t numVertices = vertexByteLength / MDL_VERTEX_STRIDE;
+
+    // Build compact VBO: float[5] per vertex = {x, y, z, u, v} (20 bytes, stride 20)
+    // UV v is flipped (MDL uses V=0=top, OpenGL uses V=0=bottom)
+    std::vector<float> vboData;
+    vboData.reserve (numVertices * 5);
+
+    // MDL vertex layout (52 bytes):
+    //   offset  0: VECTOR3 position (3 × float = 12 bytes)
+    //   offset 12: BLENDINDICES (4 × uint32 = 16 bytes)
+    //   offset 28: BLENDWEIGHTS (4 × float  = 16 bytes)
+    //   offset 44: TEXCOORD     (2 × float  =  8 bytes)
+    char vtxBuf[52];
+    for (uint32_t i = 0; i < numVertices; ++i) {
+        reader.next (vtxBuf, 52);
+
+        float x, y, z, u, v;
+        memcpy (&x, vtxBuf + 0,  sizeof (float));
+        memcpy (&y, vtxBuf + 4,  sizeof (float));
+        memcpy (&z, vtxBuf + 8,  sizeof (float));
+        memcpy (&u, vtxBuf + 44, sizeof (float));
+        memcpy (&v, vtxBuf + 48, sizeof (float));
+
+        vboData.push_back (x);
+        vboData.push_back (y);
+        vboData.push_back (z);
+        vboData.push_back (u);
+        vboData.push_back (v); // no V flip: WPE .tex stored top-row first, OpenGL maps first row to V=0=visual top
+    }
+
+    const uint32_t indicesByteLength = reader.nextUInt32 ();
+    // Each triangle = 3 × uint16 = 6 bytes
+    const uint32_t numIndices = indicesByteLength / 2;
+
+    std::vector<uint16_t> iboData;
+    iboData.reserve (numIndices);
+
+    for (uint32_t i = 0; i < numIndices; ++i) {
+        char buf[2];
+        reader.next (buf, 2);
+        uint16_t idx = static_cast<uint16_t> ((buf[1] & 0xFF) << 8 | (buf[0] & 0xFF));
+        iboData.push_back (idx);
+    }
+
+    auto mesh = std::make_unique<PuppetMesh> ();
+    mesh->numIndices = static_cast<GLsizei> (numIndices);
+
+    glGenBuffers (1, &mesh->vbo);
+    glBindBuffer (GL_ARRAY_BUFFER, mesh->vbo);
+    glBufferData (GL_ARRAY_BUFFER, static_cast<GLsizeiptr> (vboData.size () * sizeof (float)), vboData.data (),
+                  GL_STATIC_DRAW);
+    glBindBuffer (GL_ARRAY_BUFFER, 0);
+
+    glGenBuffers (1, &mesh->ibo);
+    glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, mesh->ibo);
+    glBufferData (GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr> (iboData.size () * sizeof (uint16_t)),
+                  iboData.data (), GL_STATIC_DRAW);
+    glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    this->m_puppetMesh = std::move (mesh);
+
+    sLog.out ("Puppet mesh loaded: ", numVertices, " vertices, ", numIndices / 3, " triangles from ", puppetPath);
 }
 
 void CImage::setup () {
@@ -302,6 +431,13 @@ void CImage::setup () {
 	    // create all the fbos for this effect
 	    for (const auto& fbo : cur->effect->fbos) {
 		fboProvider->create (*fbo, this->m_texture->getFlags (), this->getSize ());
+		// WPE scene.json can reference unique FBOs by a scoped name: baseName_objectId_effectId.
+		// Register that alias so override texture resolution finds the local FBO without an error log.
+		if (fbo->unique) {
+		    std::string scopedName = fbo->name + "_" + std::to_string (this->getImage ().id)
+			+ "_" + std::to_string (cur->id);
+		    fboProvider->alias (scopedName, fbo->name);
+		}
 	    }
 
 	    // TODO: MAKE USE OF ZIP OPERATOR IN BOOST? WAY OVERKILL JUST FOR THIS...
@@ -438,6 +574,7 @@ void CImage::setupPasses () {
 	const glm::mat4* projection = (first) ? &this->m_modelViewProjectionCopy : &this->m_modelViewProjectionPass;
 	const glm::mat4* inverseProjection
 	    = (first) ? &this->m_modelViewProjectionCopyInverse : &this->m_modelViewProjectionPassInverse;
+	const bool isCopyPass = first;
 	first = false;
 
 	pass->setModelMatrix (&this->m_modelMatrix);
@@ -472,6 +609,46 @@ void CImage::setupPasses () {
 	pass->setTexCoord (texcoord);
 	pass->setModelViewProjectionMatrix (projection);
 	pass->setModelViewProjectionMatrixInverse (inverseProjection);
+
+	// Hook puppet mesh geometry into the copy pass
+	if (isCopyPass && this->m_puppetMesh) {
+	    const GLuint programID = pass->getProgramID ();
+	    const GLint posLoc = glGetAttribLocation (programID, "a_Position");
+	    const GLint uvLoc = glGetAttribLocation (programID, "a_TexCoord");
+	    const GLuint vbo = this->m_puppetMesh->vbo;
+	    const GLuint ibo = this->m_puppetMesh->ibo;
+	    const GLsizei numIndices = this->m_puppetMesh->numIndices;
+
+	    pass->setGeometryCallback (
+		// setupAttribs: bind interleaved puppet VBO with stride 20
+		[posLoc, uvLoc, vbo] () {
+		    if (posLoc >= 0) {
+			glEnableVertexAttribArray (posLoc);
+			glBindBuffer (GL_ARRAY_BUFFER, vbo);
+			glVertexAttribPointer (posLoc, 3, GL_FLOAT, GL_FALSE, 20, nullptr);
+		    }
+		    if (uvLoc >= 0) {
+			glEnableVertexAttribArray (uvLoc);
+			glBindBuffer (GL_ARRAY_BUFFER, vbo);
+			glVertexAttribPointer (uvLoc, 2, GL_FLOAT, GL_FALSE, 20,
+					       reinterpret_cast<const void*> (3 * sizeof (float)));
+		    }
+		},
+		// drawGeometry: indexed draw from IBO
+		[ibo, numIndices] () {
+		    glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ibo);
+		    glDrawElements (GL_TRIANGLES, numIndices, GL_UNSIGNED_SHORT, nullptr);
+		    glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, 0);
+		},
+		// cleanupAttribs: disable attrib arrays
+		[posLoc, uvLoc] () {
+		    if (posLoc >= 0)
+			glDisableVertexAttribArray (posLoc);
+		    if (uvLoc >= 0)
+			glDisableVertexAttribArray (uvLoc);
+		}
+	    );
+	}
 
 	texcoord = this->getTexCoordPass ();
 	drawTo = prevDrawTo;

@@ -400,6 +400,30 @@ void ApplicationContext::loadSettingsFromArgv () {
 	    } else {
 		this->settings.render.window.clamp = flags;
 	    }
+	})
+	.append ();
+
+    backgroundGroup.add_argument ("--layer")
+	.help (
+	    "Wayland-only: which wlr-layer-shell layer to anchor the wallpaper to "
+	    "(background, bottom, top, overlay). Default: background. "
+	    "Use 'bottom' if your desktop shell (e.g. KDE Plasma) repaints its own background "
+	    "surface over the wallpaper after user interaction."
+	)
+	.choices ("background", "bottom", "top", "overlay")
+	.default_value (std::string ("background"))
+	.action ([this] (const std::string& value) -> void {
+	    if (value == "background") {
+		this->settings.render.wayland.layer = WAYLAND_LAYER_BACKGROUND;
+	    } else if (value == "bottom") {
+		this->settings.render.wayland.layer = WAYLAND_LAYER_BOTTOM;
+	    } else if (value == "top") {
+		this->settings.render.wayland.layer = WAYLAND_LAYER_TOP;
+	    } else if (value == "overlay") {
+		this->settings.render.wayland.layer = WAYLAND_LAYER_OVERLAY;
+	    } else {
+		sLog.exception ("Invalid wlr-layer-shell layer: ", value);
+	    }
 	});
 
     auto& performanceGroup = program.add_group ("Performance options");
@@ -490,6 +514,15 @@ void ApplicationContext::loadSettingsFromArgv () {
 	.help ("Disables parallax effect for the backgrounds")
 	.flag ()
 	.action ([this] (const std::string& value) -> void { this->settings.mouse.disableparallax = true; });
+
+    configurationGroup.add_argument ("--disable-video-hwdec")
+	.help (
+	    "Disables hardware-accelerated decoding for video wallpapers (falls back to software decode). "
+	    "Workaround for GPU/driver bugs that leak decode surfaces across an infinite video loop, "
+	    "causing memory usage to grow unbounded over long-running sessions."
+	)
+	.flag ()
+	.action ([this] (const std::string& value) -> void { this->settings.video.disableHardwareDecode = true; });
 
     configurationGroup.add_argument ("-l", "--list-properties")
 	.help ("List all the available properties and their configuration")

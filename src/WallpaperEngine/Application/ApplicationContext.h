@@ -40,6 +40,19 @@ public:
 	EXPLICIT_WINDOW = 2,
     };
 
+    /**
+     * Wayland-only: which wlr-layer-shell layer to anchor the wallpaper surface to.
+     * Different compositors treat layers differently; e.g. KDE Plasma repaints its
+     * desktop surface over BACKGROUND after user interaction unless BOTTOM is used,
+     * while niri's `place-within-backdrop` layer-rule only applies to BACKGROUND.
+     */
+    enum WAYLAND_LAYER {
+	WAYLAND_LAYER_BACKGROUND = 0,
+	WAYLAND_LAYER_BOTTOM = 1,
+	WAYLAND_LAYER_TOP = 2,
+	WAYLAND_LAYER_OVERLAY = 3,
+    };
+
     struct PlaylistSettings {
 	uint32_t delayMinutes = 60;
 	std::string mode = "timer";
@@ -110,6 +123,11 @@ public:
 		TextureFlags clamp;
 		WallpaperEngine::Render::WallpaperState::TextureUVsScaling scalingMode;
 	    } window;
+
+	    struct {
+		/** Which wlr-layer-shell layer to use for desktop backgrounds */
+		WAYLAND_LAYER layer;
+	    } wayland;
 	} render;
 
 	/**
@@ -125,6 +143,20 @@ public:
 	    /** If audio processing can be enabled or not */
 	    bool audioprocessing;
 	} audio;
+
+	/**
+	 * Video playback settings
+	 */
+	struct {
+	    /**
+	     * Disables hardware-accelerated video decoding (mpv's "hwdec").
+	     *
+	     * Workaround for GPU driver bugs where VAAPI/VDPAU/NVDEC decode surfaces
+	     * are not fully released across an infinite video loop, causing memory
+	     * (and swap) usage to grow unbounded over long-running sessions.
+	     */
+	    bool disableHardwareDecode;
+	} video;
 
 	/**
 	 * Mouse input settings
@@ -171,12 +203,18 @@ public:
                 .clamp = TextureFlags_ClampUVs,
                 .scalingMode = WallpaperEngine::Render::WallpaperState::TextureUVsScaling::DefaultUVs,
             },
+            .wayland = {
+                .layer = WAYLAND_LAYER_BACKGROUND,
+            },
         },
         .audio = {
             .enabled = true,
             .volume = 15,
             .automute = true,
             .audioprocessing = true,
+        },
+        .video = {
+            .disableHardwareDecode = false,
         },
         .mouse = {
             .enabled = true,

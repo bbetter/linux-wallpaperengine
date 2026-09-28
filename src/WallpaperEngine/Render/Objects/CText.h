@@ -37,6 +37,7 @@ public:
     void render () override;
 
     [[nodiscard]] glm::vec2 getSize () const;
+    [[nodiscard]] const Data::Model::Text& getText () const { return m_text; }
 
     // CRenderable pure virtuals
     [[nodiscard]] const float& getBrightness () const override;

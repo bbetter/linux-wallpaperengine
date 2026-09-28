@@ -15,6 +15,7 @@
 #include "WallpaperEngine/Logging/Log.h"
 #include "WallpaperEngine/Render/Wallpapers/CScene.h"
 #include "WallpaperEngine/Render/FBOProvider.h"
+#include "WallpaperEngine/Render/Objects/CImage.h"
 #include "WallpaperEngine/Scripting/ScriptEngine.h"
 
 using namespace WallpaperEngine;
@@ -619,7 +620,27 @@ void CText::setupGeometry () {
     const float sceneH = static_cast<float> (scene.getHeight ());
 
     glm::vec3 origin = this->m_text.origin->value->getVec3 ();
-    const glm::vec3 scl = this->m_text.scale->value->getVec3 ();
+    glm::vec3 scl = this->m_text.scale->value->getVec3 ();
+
+    // Compose with the parent's transform: WPE expresses a child's origin/scale in the
+    // parent's local space, so both must be scaled by the parent before being added/multiplied.
+    // Without this, objects nested under a scaled-down parent (e.g. small Day/Date labels
+    // parented to a Clock widget) render at their raw, un-composed size — wildly too large.
+    if (this->m_text.parent.has_value ()) {
+        const auto* parentObj = this->getScene ().getObject (this->m_text.parent.value ());
+        if (parentObj != nullptr) {
+            const glm::vec3 parentOrigin = parentObj->getObject ().origin->value->getVec3 ();
+            glm::vec3 parentScale (1.0f);
+            if (parentObj->is<CImage> ()) {
+                parentScale = parentObj->as<CImage> ()->getImage ().scale->value->getVec3 ();
+            } else if (parentObj->is<CText> ()) {
+                parentScale = parentObj->as<CText> ()->getText ().scale->value->getVec3 ();
+            }
+            origin = parentOrigin + parentScale * origin;
+            scl *= parentScale;
+        }
+    }
+
     const glm::vec2 size = {
         static_cast<float> (this->m_texWidth) * scl.x,
         static_cast<float> (this->m_texHeight) * scl.y,

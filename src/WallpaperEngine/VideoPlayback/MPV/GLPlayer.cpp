@@ -228,7 +228,8 @@ void GLPlayer::init () {
     }
 
     // ensure video is muted and plays in a loop
-    mpv_set_property_string (this->m_handle, "hwdec", "auto");
+    const bool disableHwdec = this->getContext ().getApp ().getContext ().settings.video.disableHardwareDecode;
+    mpv_set_property_string (this->m_handle, "hwdec", disableHwdec ? "no" : "auto");
     mpv_set_property_string (this->m_handle, "loop", "inf");
     mpv_set_property (this->m_handle, "volume", MPV_FORMAT_DOUBLE, &this->m_volume);
 

@@ -118,6 +118,15 @@ private:
 
     bool m_initialized = false;
 
+    // Puppet mesh (from MDL file)
+    struct PuppetMesh {
+        GLuint vbo = GL_NONE;
+        GLuint ibo = GL_NONE;
+        GLsizei numIndices = 0;
+    };
+    std::unique_ptr<PuppetMesh> m_puppetMesh;
+    void parsePuppetMesh (const glm::vec2& size);
+
     // Script-driven positional overrides (set per-frame by ObjectScriptContext)
     std::optional<glm::vec3> m_overrideOrigin;
     std::optional<glm::vec3> m_overrideScale;
